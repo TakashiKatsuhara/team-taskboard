@@ -268,6 +268,36 @@
   .holChip{display:inline-flex; align-items:center; gap:2px; background:var(--seg-bg); border-radius:999px; padding:5px 5px 5px 13px; font-size:12.5px; font-variant-numeric:tabular-nums;}
   .holChip button{border:none; background:transparent; color:var(--sub); cursor:pointer; font-size:12px; padding:2px 7px; border-radius:50%; line-height:1;}
   .holChip button:hover{color:var(--red-text);}
+  .calNav{display:flex; align-items:center; gap:10px; margin-top:14px;}
+  .calNav button{border:none; background:var(--seg-bg); color:var(--text); border-radius:8px; width:28px; height:28px; cursor:pointer; font-size:15px;}
+  .calNav span{font-size:13px; font-weight:700; min-width:96px; text-align:center;}
+  .holCal{display:grid; grid-template-columns:repeat(7,1fr); gap:3px; margin-top:8px; max-width:340px;}
+  .holCal .dow{font-size:10px; color:var(--sub); text-align:center; padding:2px 0;}
+  .holCal .day{height:34px; display:grid; place-content:center; font-size:12px; border-radius:8px; cursor:pointer; font-variant-numeric:tabular-nums;}
+  .holCal .day.out{visibility:hidden;}
+  .holCal .day.we{background:var(--seg-bg); color:var(--sub); cursor:default;}
+  .holCal .day.jp{background:var(--red-pill); color:var(--red-text); cursor:default;}
+  .holCal .day.co{background:var(--accent); color:#fff;}
+  .holCal .day:not(.we):not(.jp):not(.co):not(.out):hover{box-shadow:inset 0 0 0 1.5px var(--accent);}
+  .holCal .day.today-mark{font-weight:700; text-decoration:underline; text-underline-offset:3px;}
+  .calLegend{display:flex; gap:12px; font-size:11px; color:var(--sub); margin-top:8px; flex-wrap:wrap;}
+  .calLegend i{display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:4px; vertical-align:-1px;}
+
+  /* メンバー編集リスト */
+  .memberRow{display:flex; gap:6px; align-items:center; margin-bottom:7px;}
+  .memberRow .mDot{width:12px; height:12px; border-radius:50%; flex-shrink:0;}
+  .memberRow input{
+    flex:1; border:none; border-radius:8px; padding:8px 11px; font-size:13.5px; font-weight:600;
+    background:var(--input-bg); color:var(--text); font-family:inherit; min-width:0;
+  }
+  .memberRow input:focus{outline:2px solid var(--accent);}
+  .memberRow button{
+    border:none; background:var(--input-bg); color:var(--sub); border-radius:8px;
+    width:28px; height:28px; cursor:pointer; font-size:13px; flex-shrink:0;
+  }
+  .memberRow button:hover{color:var(--text);}
+  .memberRow button.mDel:hover{color:var(--red-text);}
+  .btnAddMem{border:none; border-radius:999px; padding:8px 18px; font-size:13px; cursor:pointer; background:var(--accent); color:#fff; font-weight:600; font-family:inherit;}
   details.help{margin-top:14px; font-size:12px; color:var(--sub);}
   details.help li{margin:4px 0 4px 18px;}
 
@@ -393,10 +423,12 @@
     <h2>設定</h2>
 
     <div class="settingsSection" style="border-top:none; margin-top:0; padding-top:0;">
-      <h3>👤 メンバー（1行1名）</h3>
-      <div class="formRow">
-        <textarea id="s_members" style="min-height:110px; line-height:1.7"></textarea>
+      <h3>👤 メンバー</h3>
+      <div class="hint" style="margin-bottom:8px">
+        ●は担当バッジの色です。↑↓で表示順を変更、✕で削除。名前を書き換えると、過去タスクの担当・依頼者も自動で新しい名前に引き継がれます。
       </div>
+      <div id="memberRows"></div>
+      <button class="btnAddMem" onclick="addMemberRow()">＋ メンバーを追加</button>
     </div>
 
     <div class="settingsSection">
@@ -416,6 +448,16 @@
       </div>
       <button class="btnAddHol" onclick="addHoliday()">＋ 休みを追加</button>
       <div id="holidayChips" class="chipsWrap"></div>
+      <div class="calNav">
+        <button onclick="calShift(-1)">‹</button><span id="calTitle"></span><button onclick="calShift(1)">›</button>
+      </div>
+      <div class="holCal" id="holCal"></div>
+      <div class="calLegend">
+        <span><i style="background:var(--seg-bg)"></i>土日（自動）</span>
+        <span><i style="background:var(--red-pill)"></i>祝日（自動）</span>
+        <span><i style="background:var(--accent)"></i>会社の休み</span>
+      </div>
+      <div class="hint">カレンダーの日付をクリックすると会社の休みを追加・解除できます（祝日名は日付にマウスを乗せると表示）。</div>
     </div>
 
     <div class="settingsSection">
@@ -486,27 +528,29 @@ function nowIso(){ return new Date().toISOString(); }
 
 /* ================= 祝日・営業日 ================= */
 const holidayCache = {};
-function jpHolidaySet(y){
+function jpHolidaySet(y){ // 日付→祝日名のMap（.has()と.get()の両方に使う）
   if(holidayCache[y]) return holidayCache[y];
-  const H = new Set();
-  const add = (m, d) => H.add(`${y}-${pad(m)}-${pad(d)}`);
-  add(1,1); add(2,11); add(2,23); add(4,29); add(5,3); add(5,4); add(5,5);
-  add(8,11); add(11,3); add(11,23);
+  const H = new Map();
+  const add = (m, d, name) => H.set(`${y}-${pad(m)}-${pad(d)}`, name);
+  add(1,1,'元日'); add(2,11,'建国記念の日'); add(2,23,'天皇誕生日'); add(4,29,'昭和の日');
+  add(5,3,'憲法記念日'); add(5,4,'みどりの日'); add(5,5,'こどもの日'); add(8,11,'山の日');
+  add(11,3,'文化の日'); add(11,23,'勤労感謝の日');
   const nthMon = (m, n) => { const first = new Date(y, m-1, 1); return 1 + (8 - first.getDay()) % 7 + (n-1)*7; };
-  add(1, nthMon(1,2)); add(7, nthMon(7,3)); add(9, nthMon(9,3)); add(10, nthMon(10,2));
-  add(3, Math.floor(20.8431 + 0.242194*(y-1980) - Math.floor((y-1980)/4)));
-  add(9, Math.floor(23.2488 + 0.242194*(y-1980) - Math.floor((y-1980)/4)));
-  for(const k of [...H]){
+  add(1, nthMon(1,2), '成人の日'); add(7, nthMon(7,3), '海の日');
+  add(9, nthMon(9,3), '敬老の日'); add(10, nthMon(10,2), 'スポーツの日');
+  add(3, Math.floor(20.8431 + 0.242194*(y-1980) - Math.floor((y-1980)/4)), '春分の日');
+  add(9, Math.floor(23.2488 + 0.242194*(y-1980) - Math.floor((y-1980)/4)), '秋分の日');
+  for(const k of [...H.keys()]){
     if(toDate(k).getDay() === 0){
       let n = addDays(k, 1);
       while(H.has(n)) n = addDays(n, 1);
-      H.add(n);
+      H.set(n, '振替休日');
     }
   }
-  for(const k of [...H]){
+  for(const k of [...H.keys()]){
     if(H.has(addDays(k, 2))){
       const mid = addDays(k, 1);
-      if(!H.has(mid) && toDate(mid).getDay() !== 0) H.add(mid);
+      if(!H.has(mid) && toDate(mid).getDay() !== 0) H.set(mid, '国民の休日');
     }
   }
   holidayCache[y] = H;
@@ -525,13 +569,17 @@ function nextBusinessDay(s){ let d = addDays(s, 1); while(isNonWorkday(d)) d = a
 
 /* ================= 状態 ================= */
 const DEFAULT_MEMBERS = ['杉信','中河','椿','大森','井上'];
-const MEMBER_COLORS = [
-  ['rgba(49,89,196,.13)', '#3159c4'],
-  ['rgba(46,125,84,.13)', '#2e7d54'],
-  ['rgba(176,122,38,.14)', '#96690f'],
-  ['rgba(140,91,107,.14)', '#8c4a63'],
-  ['rgba(107,91,140,.14)', '#6b5b8c'],
-  ['rgba(90,90,95,.12)', '#5a5a5f']
+const MEMBER_COLORS = [ // 9色＋予備グレー（10人目以降は循環）
+  ['rgba(49,89,196,.13)', '#3159c4'],   // 青
+  ['rgba(46,125,84,.13)', '#2e7d54'],   // 緑
+  ['rgba(176,122,38,.14)', '#96690f'],  // 金茶
+  ['rgba(140,74,99,.14)', '#8c4a63'],   // ローズ
+  ['rgba(107,91,140,.14)', '#6b5b8c'],  // 紫
+  ['rgba(46,110,125,.13)', '#2e6e7d'],  // ティール
+  ['rgba(162,84,58,.14)', '#a2543a'],   // レンガ
+  ['rgba(107,125,46,.15)', '#5f7020'],  // オリーブ
+  ['rgba(125,46,110,.13)', '#7d2e6e'],  // プラム
+  ['rgba(90,90,95,.12)', '#5a5a5f']     // 予備（未登録者用グレー）
 ];
 let members = { list: DEFAULT_MEMBERS.slice(), updatedAt: null };
 let tasks = [];
@@ -547,12 +595,14 @@ let orderCache = [];
 let quickDraft = { due: '', priority: '', title: '', assignee: '', memo: '' };
 let addingQuick = false;
 let prevSeen = null; // 前回閲覧時刻（新着判定用）
+let calMonth = null;
 
 const LS = { tasks:'tt_tasks', cfg:'tt_cfg', settings:'tt_settings', me:'tt_me', seen:'tt_seen', members:'tt_members' };
 
 function memberColor(name){
   const i = members.list.indexOf(name);
-  return MEMBER_COLORS[(i >= 0 ? i : MEMBER_COLORS.length - 1) % MEMBER_COLORS.length];
+  if(i < 0) return MEMBER_COLORS[9]; // 未登録者はグレー
+  return MEMBER_COLORS[i % 9];
 }
 function mbHtml(name){
   if(!name) return '<span class="lastInfo">ー</span>';
@@ -1028,6 +1078,91 @@ function markDirty(){
 function manualSync(){ pull(); }
 
 /* ================= 設定 ================= */
+function calShift(n){
+  calMonth.setMonth(calMonth.getMonth() + n);
+  renderHolidayCal();
+}
+function renderHolidayCal(){
+  if(!calMonth){
+    const now = new Date();
+    calMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  }
+  const y = calMonth.getFullYear(), m = calMonth.getMonth();
+  $('calTitle').textContent = `${y}年${m+1}月`;
+  const firstDow = new Date(y, m, 1).getDay();
+  const days = new Date(y, m+1, 0).getDate();
+  const today = todayStr();
+  let html = WEEKDAYS.map(w => `<div class="dow">${w}</div>`).join('');
+  for(let i = 0; i < firstDow; i++) html += '<div class="day out"></div>';
+  for(let d = 1; d <= days; d++){
+    const ds = `${y}-${pad(m+1)}-${pad(d)}`;
+    const dow = new Date(y, m, d).getDay();
+    const jpName = jpHolidaySet(y).get(ds);
+    let cls = 'day', title = '';
+    if(customHolidaySet.has(ds)){ cls += ' co'; title = '会社の休み（クリックで解除）'; }
+    else if(jpName){ cls += ' jp'; title = jpName; }
+    else if(dow === 0 || dow === 6){ cls += ' we'; }
+    if(ds === today) cls += ' today-mark';
+    html += `<div class="${cls}" data-d="${ds}" title="${esc(title)}">${d}</div>`;
+  }
+  $('holCal').innerHTML = html;
+  $('holCal').querySelectorAll('.day:not(.out)').forEach(el => {
+    const clickable = el.classList.contains('co') ||
+      (!el.classList.contains('we') && !el.classList.contains('jp'));
+    if(clickable) el.addEventListener('click', () => toggleCompanyHoliday(el.dataset.d));
+  });
+}
+function toggleCompanyHoliday(d){
+  const set = new Set(appSettings.customHolidays || []);
+  set.has(d) ? set.delete(d) : set.add(d);
+  appSettings = { customHolidays: [...set].sort(), updatedAt: nowIso() };
+  rebuildHolidaySet();
+  renderHolidayChips(); renderHolidayCal(); markDirty(); render(true);
+}
+function makeMemberRow(name, idx){
+  const row = document.createElement('div');
+  row.className = 'memberRow';
+  const fg = MEMBER_COLORS[idx % 9][1];
+  row.innerHTML = `
+    <span class="mDot" style="background:${fg}"></span>
+    <input type="text" value="${esc(name)}" data-orig="${esc(name)}" placeholder="名前">
+    <button class="mUp" title="上へ">↑</button>
+    <button class="mDown" title="下へ">↓</button>
+    <button class="mDel" title="削除">✕</button>`;
+  row.querySelector('.mUp').addEventListener('click', () => {
+    const prev = row.previousElementSibling;
+    if(prev) row.parentNode.insertBefore(row, prev);
+    refreshMemberDots();
+  });
+  row.querySelector('.mDown').addEventListener('click', () => {
+    const next = row.nextElementSibling;
+    if(next) row.parentNode.insertBefore(next, row);
+    refreshMemberDots();
+  });
+  row.querySelector('.mDel').addEventListener('click', () => {
+    if(confirm(`「${row.querySelector('input').value || '（無名）'}」を削除しますか？`)){
+      row.remove();
+      refreshMemberDots();
+    }
+  });
+  return row;
+}
+function refreshMemberDots(){
+  document.querySelectorAll('#memberRows .memberRow').forEach((row, i) => {
+    row.querySelector('.mDot').style.background = MEMBER_COLORS[i % 9][1];
+  });
+}
+function buildMemberRows(){
+  const wrap = $('memberRows');
+  wrap.innerHTML = '';
+  members.list.forEach((name, i) => wrap.appendChild(makeMemberRow(name, i)));
+}
+function addMemberRow(){
+  const wrap = $('memberRows');
+  const row = makeMemberRow('', wrap.children.length);
+  wrap.appendChild(row);
+  row.querySelector('input').focus();
+}
 function addHoliday(){
   let from = $('s_holFrom').value;
   let to = $('s_holTo').value || from;
@@ -1039,12 +1174,12 @@ function addHoliday(){
   appSettings = { customHolidays: [...set].sort(), updatedAt: nowIso() };
   rebuildHolidaySet();
   $('s_holFrom').value = ''; $('s_holTo').value = '';
-  renderHolidayChips(); markDirty(); render(true);
+  renderHolidayChips(); renderHolidayCal(); markDirty(); render(true);
 }
 function removeHoliday(d){
   appSettings = { customHolidays: (appSettings.customHolidays || []).filter(x => x !== d), updatedAt: nowIso() };
   rebuildHolidaySet();
-  renderHolidayChips(); markDirty(); render(true);
+  renderHolidayChips(); renderHolidayCal(); markDirty(); render(true);
 }
 function renderHolidayChips(){
   const wrap = $('holidayChips');
@@ -1057,8 +1192,9 @@ function renderHolidayChips(){
 }
 function openSettings(){
   const cfg = getCfg();
-  $('s_members').value = members.list.join('\n');
+  buildMemberRows();
   renderHolidayChips();
+  renderHolidayCal();
   $('s_owner').value = cfg?.owner || '';
   $('s_repo').value = cfg?.repo || '';
   $('s_branch').value = cfg?.branch || 'main';
@@ -1068,11 +1204,33 @@ function openSettings(){
 }
 function closeSettings(){ $('settingsOverlay').classList.remove('show'); }
 async function saveSettings(){
-  const newList = $('s_members').value.split('\n').map(s => s.trim()).filter(Boolean);
+  // メンバー行の読み取り＋名前変更の引き継ぎ
+  const renames = {};
+  const rawList = [];
+  document.querySelectorAll('#memberRows .memberRow').forEach(row => {
+    const input = row.querySelector('input');
+    const name = input.value.trim();
+    if(!name) return;
+    rawList.push(name);
+    const orig = input.dataset.orig;
+    if(orig && orig !== name) renames[orig] = name;
+  });
+  const seenNames = new Set();
+  const newList = rawList.filter(n => !seenNames.has(n) && seenNames.add(n));
   if(newList.length && JSON.stringify(newList) !== JSON.stringify(members.list)){
     members = { list: newList, updatedAt: nowIso() };
-    if(me && !newList.includes(me)) me = '';
   }
+  if(Object.keys(renames).length){
+    for(const t of tasks){
+      let changed = false;
+      if(renames[t.assignee]){ t.assignee = renames[t.assignee]; changed = true; }
+      if(renames[t.requester]){ t.requester = renames[t.requester]; changed = true; }
+      if(changed) t.updatedAt = nowIso();
+    }
+    if(renames[me]){ me = renames[me]; localStorage.setItem(LS.me, me); }
+    if(renames[quickDraft.assignee]) quickDraft.assignee = renames[quickDraft.assignee];
+  }
+  if(me && !members.list.includes(me)){ me = ''; localStorage.removeItem(LS.me); }
   const cfg = {
     owner: $('s_owner').value.trim(),
     repo: $('s_repo').value.trim(),
