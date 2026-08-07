@@ -1,0 +1,5 @@
+*.xlsx
+*.xls
+*.csv
+tasks*.json
+team_tasks*.json
