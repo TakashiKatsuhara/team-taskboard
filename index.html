@@ -111,7 +111,7 @@
   tbody tr:last-child td{border-bottom:none;}
   tbody tr:hover td{background:rgba(125,125,135,.05);}
   td.chk, th.chk{width:40px; text-align:center; padding-left:14px;}
-  th.edit, td.edit{width:34px; text-align:center;}
+  th.edit, td.edit{width:60px; text-align:center; white-space:nowrap;}
 
   tr.overdue td{background:var(--red-row);}
   tr.today td{background:var(--blue-row);}
@@ -197,6 +197,24 @@
     background:var(--blue-pill); color:#fff; margin-left:5px; vertical-align:1px;}
 
   .lastInfo{font-size:10.5px; color:var(--sub);}
+
+  /* 階層表示 */
+  .titleWrap{display:flex; align-items:center; gap:2px; min-width:0;}
+  .titleWrap input{flex:1; min-width:0;}
+  .twist{
+    display:inline-block; width:18px; text-align:center; cursor:pointer; color:var(--sub);
+    font-size:10px; user-select:none; flex-shrink:0; border-radius:5px; padding:3px 0;
+  }
+  .twist:hover{background:var(--seg-bg); color:var(--text);}
+  .twistSp{display:inline-block; width:18px; flex-shrink:0;}
+  .prog{
+    display:inline-block; font-size:10px; font-weight:700; border-radius:999px; padding:1.5px 8px;
+    background:var(--seg-bg); color:var(--sub); margin-left:5px; white-space:nowrap; flex-shrink:0;
+    font-variant-numeric:tabular-nums;
+  }
+  .prog.doneAll{background:rgba(46,125,84,.15); color:#2e7d54;}
+  @media (prefers-color-scheme: dark){ .prog.doneAll{color:#5fb886;} }
+  .parentCrumb{font-size:10.5px; color:var(--sub); padding-left:20px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .editBtn{border:none; background:transparent; color:#c0c0c6; cursor:pointer; font-size:13px; padding:3px 5px; border-radius:7px; transition:all .15s;}
   .editBtn:hover{background:var(--seg-bg); color:var(--text);}
 
@@ -346,7 +364,7 @@
   <table id="taskTable">
     <colgroup>
       <col style="width:40px"><col style="width:82px"><col style="width:46px"><col style="width:74px">
-      <col><col style="width:86px"><col style="width:86px"><col><col style="width:34px">
+      <col><col style="width:86px"><col style="width:86px"><col><col style="width:60px">
     </colgroup>
     <thead>
       <tr>
@@ -404,6 +422,10 @@
         <label>依頼者</label>
         <select id="f_requester"></select>
       </div>
+    </div>
+    <div class="formRow">
+      <label>親タスク（案件・工程の下にぶら下げる場合に選択）</label>
+      <select id="f_parent"></select>
     </div>
     <div class="formRow">
       <label>メモ</label>
@@ -596,8 +618,88 @@ let quickDraft = { due: '', priority: '', title: '', assignee: '', memo: '' };
 let addingQuick = false;
 let prevSeen = null; // 前回閲覧時刻（新着判定用）
 let calMonth = null;
+let collapsed = new Set(); // 折りたたみ中の親タスクID（端末ローカル）
+const MAX_DEPTH = 4;
 
-const LS = { tasks:'tt_tasks', cfg:'tt_cfg', settings:'tt_settings', me:'tt_me', seen:'tt_seen', members:'tt_members' };
+const LS = { tasks:'tt_tasks', cfg:'tt_cfg', settings:'tt_settings', me:'tt_me', seen:'tt_seen', members:'tt_members', collapsed:'tt_collapsed' };
+
+/* ================= 階層ヘルパー ================= */
+function taskById(id){ return tasks.find(x => x.id === id && !x.deleted); }
+function depthOf(t){
+  let d = 1, cur = t, guard = 0;
+  while(cur && cur.parentId && guard++ < 10){
+    const p = taskById(cur.parentId);
+    if(!p) break;
+    d++; cur = p;
+  }
+  return d;
+}
+function isDescendantOf(t, ancestorId){
+  let cur = t, guard = 0;
+  while(cur && cur.parentId && guard++ < 10){
+    if(cur.parentId === ancestorId) return true;
+    cur = taskById(cur.parentId);
+  }
+  return false;
+}
+function descendantStats(id){
+  let done = 0, total = 0;
+  const stack = [id];
+  let guard = 0;
+  while(stack.length && guard++ < 2000){
+    const cur = stack.pop();
+    for(const c of tasks){
+      if(c.deleted || c.parentId !== cur) continue;
+      total++;
+      if(c.status === 'done') done++;
+      stack.push(c.id);
+    }
+  }
+  return { done, total };
+}
+function parentTitle(t){
+  const p = t.parentId ? taskById(t.parentId) : null;
+  return p ? p.title : '';
+}
+function toggleCollapse(id){
+  collapsed.has(id) ? collapsed.delete(id) : collapsed.add(id);
+  localStorage.setItem(LS.collapsed, JSON.stringify([...collapsed]));
+  render();
+}
+function taskComparator(a, b){
+  const da = a.due || '9999-12-31', db = b.due || '9999-12-31';
+  if(da !== db) return da.localeCompare(db);
+  const pa = a.priority === '' || a.priority == null ? 999 : Number(a.priority);
+  const pb = b.priority === '' || b.priority == null ? 999 : Number(b.priority);
+  if(pa !== pb) return pa - pb;
+  return (a.title || '').localeCompare(b.title || '', 'ja');
+}
+// みんなビュー用のツリー行（未完了のみ。完了した親の子はトップ扱い）
+function treeRows(ignoreCollapse){
+  const act = tasks.filter(t => !t.deleted && t.status !== 'done');
+  const actIds = new Set(act.map(t => t.id));
+  const childMap = new Map();
+  const roots = [];
+  for(const t of act){
+    if(t.parentId && actIds.has(t.parentId)){
+      if(!childMap.has(t.parentId)) childMap.set(t.parentId, []);
+      childMap.get(t.parentId).push(t);
+    } else {
+      roots.push(t);
+    }
+  }
+  roots.sort(taskComparator);
+  for(const arr of childMap.values()) arr.sort(taskComparator);
+  const rows = [];
+  const walk = (t, depth) => {
+    const kids = childMap.get(t.id) || [];
+    const stats = descendantStats(t.id);
+    rows.push({ t, depth, hasKids: stats.total > 0, isCollapsed: collapsed.has(t.id), stats });
+    if(ignoreCollapse || !collapsed.has(t.id)) for(const c of kids) walk(c, Math.min(depth + 1, MAX_DEPTH));
+  };
+  for(const r of roots) walk(r, 1);
+  return rows;
+}
 
 function memberColor(name){
   const i = members.list.indexOf(name);
@@ -619,6 +721,7 @@ function loadLocal(){
   me = localStorage.getItem(LS.me) || '';
   prevSeen = localStorage.getItem(LS.seen) || null;
   localStorage.setItem(LS.seen, nowIso());
+  try{ collapsed = new Set(JSON.parse(localStorage.getItem(LS.collapsed) || '[]')); }catch(e){}
 }
 function saveLocal(){
   localStorage.setItem(LS.tasks, JSON.stringify(tasks));
@@ -755,17 +858,26 @@ function render(preserveOrder){
     ms.style.display = 'none';
   }
 
-  const list = visibleTasks(preserveOrder === true);
+  const q = $('searchBox').value.trim();
+  const isTree = currentView === 'all' && !memberFilter && !q;
+  let rows;
+  if(isTree){
+    rows = treeRows();
+    orderCache = rows.map(r => r.t.id);
+  } else {
+    rows = visibleTasks(preserveOrder === true).map(t => ({ t, depth: 1, hasKids: false, isCollapsed: false, flat: true }));
+  }
   const tbody = $('taskBody');
   const cards = $('cards');
   tbody.innerHTML = '';
   cards.innerHTML = '';
-  $('emptyMsg').style.display = list.length ? 'none' : 'block';
+  $('emptyMsg').style.display = rows.length ? 'none' : 'block';
   $('taskTable').style.display = '';
 
   if(currentView !== 'done') tbody.appendChild(buildQuickRow());
 
-  for(const t of list){
+  for(const row of rows){
+    const t = row.t;
     const cls = rowClass(t);
     const dateCell = (field, val, extraCls) =>
       `<td class="dateCell ${extraCls || ''}"><span class="dateText ${val ? '' : 'dateEmpty'}">${val ? esc(fmtMD(val)) : 'ー'}</span><input type="date" class="dateInput" data-field="${field}" value="${esc(val || '')}"></td>`;
@@ -773,6 +885,15 @@ function render(preserveOrder){
       ? '<span class="lastInfo">完了</span>'
       : `<button class="stBtn ${t.status === 'doing' ? 'doing' : ''}" title="クリックで切替">${t.status === 'doing' ? '進行中' : '未着手'}</button>`;
     const newPill = isNew(t) ? '<span class="newPill">NEW</span>' : '';
+    const stats = row.stats || descendantStats(t.id);
+    const prog = stats.total ? `<span class="prog ${stats.done === stats.total ? 'doneAll' : ''}" title="子タスクの完了数">${stats.done}/${stats.total}</span>` : '';
+    const indent = row.flat ? 0 : (row.depth - 1) * 16;
+    const twist = !row.flat && row.hasKids
+      ? `<span class="twist" title="折りたたみ">${row.isCollapsed ? '▶' : '▼'}</span>`
+      : (!row.flat && row.depth > 1 ? '<span class="twistSp"></span>' : '');
+    const crumb = row.flat && t.parentId && parentTitle(t)
+      ? `<div class="parentCrumb">└ ${esc(parentTitle(t))}</div>` : '';
+    const canChild = depthOf(t) < MAX_DEPTH && t.status !== 'done';
 
     const tr = document.createElement('tr');
     tr.className = cls + (t.id === lastEditedId ? ' flash' : '');
@@ -781,11 +902,15 @@ function render(preserveOrder){
       ${dateCell('due', t.due, 'dc-due')}
       <td><button class="priBtn${t.priority === '' || t.priority == null ? '' : ' has'}" title="優先度">${t.priority === '' || t.priority == null ? 'ー' : esc(t.priority)}</button></td>
       <td>${stHtml}</td>
-      <td><input type="text" class="f-title" data-field="title" value="${esc(t.title)}">${newPill}</td>
+      <td><div class="titleWrap" style="padding-left:${indent}px">${twist}<input type="text" class="f-title" data-field="title" value="${esc(t.title)}">${prog}${newPill}</div>${crumb}</td>
       <td><select data-field="assignee">${memberOptions(t.assignee)}</select></td>
       <td>${mbHtml(t.requester)}</td>
       <td><input type="text" class="f-memo" data-field="memo" value="${esc(t.memo || '')}"></td>
-      <td class="edit"><button class="editBtn" title="詳細編集">✎</button></td>`;
+      <td class="edit">${canChild ? '<button class="editBtn addChildBtn" title="子タスクを追加">＋</button>' : ''}<button class="editBtn" title="詳細編集">✎</button></td>`;
+    const tw = tr.querySelector('.twist');
+    if(tw) tw.addEventListener('click', e => { e.stopPropagation(); toggleCollapse(t.id); });
+    const acb = tr.querySelector('.addChildBtn');
+    if(acb) acb.addEventListener('click', () => openTaskModal(null, t.id));
     tr.querySelector('td.chk input').addEventListener('click', e => { e.stopPropagation(); toggleDone(t.id, e.target.checked); });
     tr.querySelectorAll('[data-field]').forEach(inp => {
       inp.addEventListener('change', e => updateField(t.id, inp.dataset.field, e.target.value));
@@ -808,13 +933,16 @@ function render(preserveOrder){
     // モバイルカード
     const card = document.createElement('div');
     card.className = `card ${cls}`;
+    if(!row.flat && row.depth > 1) card.style.marginLeft = ((row.depth - 1) * 14) + 'px';
     const meta = [];
     if(t.due) meta.push(`<span class="cardDate">〆 ${esc(fmtMD(t.due))}</span>`);
     if(t.priority !== '' && t.priority != null) meta.push(`<span>優先${esc(t.priority)}</span>`);
+    const cardCrumb = t.parentId && parentTitle(t) ? `<div class="parentCrumb" style="padding-left:0">└ ${esc(parentTitle(t))}</div>` : '';
     card.innerHTML = `
       <input type="checkbox" class="rnd" ${t.status === 'done' ? 'checked' : ''}>
       <div class="cardBody">
-        <div class="cardTitle">${esc(t.title)}${newPill}</div>
+        <div class="cardTitle">${esc(t.title)}${prog}${newPill}</div>
+        ${cardCrumb}
         <div class="cardMeta">${meta.join('')} 担当${mbHtml(t.assignee)} ${t.requester && t.requester !== t.assignee ? '依頼' + mbHtml(t.requester) : ''} ${t.status === 'doing' ? '<button class="stBtn doing">進行中</button>' : ''}</div>
         ${t.memo ? `<div class="cardMemo">${esc(t.memo)}</div>` : ''}
       </div>`;
@@ -914,10 +1042,22 @@ function openPriPopover(anchor, cb){
 function closePriPopover(){ $('priPop').style.display = 'none'; priPopCb = null; }
 
 /* ================= モーダル ================= */
-function openTaskModal(id){
+function buildParentOptions(excludeTask, selectedId){
+  const rows = treeRows(true);
+  let html = '<option value="">なし（トップ階層＝案件）</option>';
+  for(const r of rows){
+    const p = r.t;
+    if(excludeTask && (p.id === excludeTask.id || isDescendantOf(p, excludeTask.id))) continue;
+    if(r.depth >= MAX_DEPTH) continue;
+    const label = '　'.repeat(r.depth - 1) + (p.title.length > 40 ? p.title.slice(0, 40) + '…' : p.title);
+    html += `<option value="${esc(p.id)}" ${p.id === selectedId ? 'selected' : ''}>${esc(label)}</option>`;
+  }
+  return html;
+}
+function openTaskModal(id, parentPreset){
   editingId = id || null;
   const t = id ? tasks.find(x => x.id === id) : null;
-  $('taskModalTitle').textContent = t ? 'タスクを編集' : 'タスクを追加';
+  $('taskModalTitle').textContent = t ? 'タスクを編集' : (parentPreset ? '子タスクを追加' : 'タスクを追加');
   $('btnDelete').style.display = t ? 'inline-block' : 'none';
   $('f_title').value = t ? t.title : '';
   $('f_due').value = t?.due || '';
@@ -925,6 +1065,7 @@ function openTaskModal(id){
   $('f_status').value = t && t.status === 'doing' ? 'doing' : 'todo';
   $('f_assignee').innerHTML = memberOptions(t?.assignee || me || members.list[0]);
   $('f_requester').innerHTML = memberOptions(t?.requester || me || members.list[0]);
+  $('f_parent').innerHTML = buildParentOptions(t, t?.parentId || parentPreset || '');
   $('f_memo').value = t?.memo || '';
   $('taskOverlay').classList.add('show');
   if(!t) $('f_title').focus();
@@ -939,6 +1080,7 @@ function saveTask(){
     priority: $('f_priority').value === '' ? '' : Number($('f_priority').value),
     assignee: $('f_assignee').value,
     requester: $('f_requester').value,
+    parentId: $('f_parent').value || null,
     memo: $('f_memo').value,
     updatedAt: nowIso()
   };
@@ -953,7 +1095,11 @@ function saveTask(){
 }
 function deleteTask(){
   if(!editingId) return;
-  if(!confirm('このタスクを削除しますか？')) return;
+  const stats = descendantStats(editingId);
+  const msg = stats.total > 0
+    ? `このタスクを削除しますか？\n（子タスク${stats.total}件は削除されず、トップ階層に移動します）`
+    : 'このタスクを削除しますか？';
+  if(!confirm(msg)) return;
   const t = tasks.find(x => x.id === editingId);
   t.deleted = true; t.updatedAt = nowIso();
   closeTaskModal(); markDirty(); render();
