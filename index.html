@@ -201,12 +201,6 @@
   /* 階層表示 */
   .titleWrap{display:flex; align-items:center; gap:2px; min-width:0;}
   .titleWrap input{flex:1; min-width:0;}
-  .twist{
-    display:inline-block; width:18px; text-align:center; cursor:pointer; color:var(--sub);
-    font-size:10px; user-select:none; flex-shrink:0; border-radius:5px; padding:3px 0;
-  }
-  .twist:hover{background:var(--seg-bg); color:var(--text);}
-  .twistSp{display:inline-block; width:18px; flex-shrink:0;}
   .prog{
     display:inline-block; font-size:10px; font-weight:700; border-radius:999px; padding:1.5px 8px;
     background:var(--seg-bg); color:var(--sub); margin-left:5px; white-space:nowrap; flex-shrink:0;
@@ -215,32 +209,81 @@
   .prog.doneAll{background:rgba(46,125,84,.15); color:#2e7d54;}
   @media (prefers-color-scheme: dark){ .prog.doneAll{color:#5fb886;} }
   .parentCrumb{font-size:10.5px; color:var(--sub); padding-left:20px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-  .lvBar{display:inline-block; width:3px; height:15px; border-radius:2px; margin-right:5px; flex-shrink:0;}
-  .lvBar.lv2{background:#98a8c6;}
-  .lvBar.lv3{background:#86b8a0;}
-  .lvBar.lv4{background:#cfa964;}
 
-  /* ===== 案件カード ===== */
-  #projCards{margin-top:12px;}
-  .projCard{background:var(--card); border-radius:16px; box-shadow:var(--shadow); margin-bottom:12px; overflow:hidden;}
-  .projHead{
-    display:flex; align-items:center; gap:10px; padding:11px 14px; cursor:pointer;
-    background:rgba(85,100,125,.07); border-bottom:0.5px solid var(--line); flex-wrap:wrap;
+  /* ===== ボードバー（案件切替） ===== */
+  #boardBar{display:none; gap:8px; padding:2px 20px 10px; overflow-x:auto; align-items:center;}
+  .bTab{
+    border:none; border-radius:999px; padding:8px 16px; font-size:13px; font-weight:600; cursor:pointer;
+    background:var(--card); color:var(--sub); box-shadow:var(--shadow); white-space:nowrap; font-family:inherit;
+    transition:filter .15s;
   }
-  @media (prefers-color-scheme: dark){ .projHead{background:rgba(147,164,192,.10);} }
-  .projHead:hover{filter:brightness(.98);}
-  .projHead.overdue{box-shadow:inset 4px 0 0 var(--red); background:var(--red-row);}
-  .projHead.today{box-shadow:inset 4px 0 0 var(--blue-pill); background:var(--blue-row);}
-  .projHead.plain{cursor:default;}
-  .projTwist{font-size:11px; color:var(--sub); width:16px; text-align:center; flex-shrink:0;}
-  .projTitle{font-weight:800; font-size:14.5px; letter-spacing:-.01em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0;}
-  .projDue{font-size:12px; font-weight:600; border-radius:999px; padding:2.5px 10px; background:var(--seg-bg); color:var(--sub); white-space:nowrap;}
-  .projDue.overdue{background:var(--red-pill); color:var(--red-text);}
-  .projDue.today{background:var(--blue-pill); color:#fff;}
-  .projDue.next{background:var(--next-pill-bg); color:var(--next-pill-text);}
-  .projBtns{margin-left:auto; display:flex; gap:2px; flex-shrink:0;}
-  .projTable{width:100%; table-layout:fixed; border-collapse:separate; border-spacing:0;}
-  .projEmpty{padding:12px 16px; font-size:12px; color:var(--sub);}
+  .bTab:hover{filter:brightness(.97);}
+  .bTab.active{background:var(--accent); color:#fff;}
+  .bTab .cnt{font-size:10.5px; opacity:.8; margin-left:5px; font-variant-numeric:tabular-nums;}
+  .bAdd{background:transparent; box-shadow:none; color:var(--accent); font-weight:700;}
+
+  /* ===== カンバン ===== */
+  #kanban{display:none; gap:12px; align-items:flex-start; overflow-x:auto; padding-bottom:30px;}
+  .kCol{
+    background:rgba(125,125,135,.08); border-radius:14px; padding:10px;
+    width:320px; flex:0 0 auto; min-height:140px;
+  }
+  @media (prefers-color-scheme: dark){ .kCol{background:rgba(255,255,255,.05);} }
+  .kCol.dragover{outline:2px dashed var(--accent); outline-offset:-2px;}
+  .kColHead{display:flex; align-items:center; gap:7px; padding:2px 4px 9px; font-size:12.5px; font-weight:700;}
+  .kColHead .dot{width:8px; height:8px; border-radius:50%; flex-shrink:0;}
+  .kCount{color:var(--sub); font-weight:600; font-size:11.5px; font-variant-numeric:tabular-nums;}
+  .kAddBtn{margin-left:auto; border:none; background:transparent; color:var(--sub); cursor:pointer; font-size:16px; border-radius:6px; padding:0 7px; line-height:1.3;}
+  .kAddBtn:hover{background:var(--seg-bg); color:var(--text);}
+  .kAddInput{
+    width:100%; border:none; border-radius:9px; padding:8px 11px; font-size:13px; margin-bottom:8px;
+    background:var(--card); color:var(--text); font-family:inherit; box-shadow:var(--shadow); display:none;
+  }
+  .kAddInput:focus{outline:2px solid var(--accent);}
+  .kCard{
+    background:var(--card); border-radius:11px; padding:10px 12px; margin-bottom:8px;
+    box-shadow:var(--shadow); cursor:grab;
+  }
+  .kCard:active{cursor:grabbing;}
+  .kCard.dragging{opacity:.4;}
+  .kCard.overdue{box-shadow:inset 3px 0 0 var(--red), var(--shadow);}
+  .kCard.today{box-shadow:inset 3px 0 0 var(--blue-pill), var(--shadow);}
+  .kCard.next{box-shadow:inset 3px 0 0 var(--next-pill-text), var(--shadow);}
+  .kCard.done{opacity:.6;}
+  .kCard.done .kTitle{text-decoration:line-through; color:var(--done-text);}
+  .kTitle{font-weight:700; font-size:13.5px; letter-spacing:-.01em;}
+  .kMeta{display:flex; flex-wrap:wrap; gap:4px 7px; margin-top:7px; align-items:center; font-size:11px; color:var(--sub);}
+  .kDue{font-size:11px; font-weight:600; border-radius:999px; padding:2px 9px; background:var(--seg-bg); color:var(--sub);}
+  .kDue.overdue{background:var(--red-pill); color:var(--red-text);}
+  .kDue.today{background:var(--blue-pill); color:#fff;}
+  .kDue.next{background:var(--next-pill-bg); color:var(--next-pill-text);}
+  .kChecklist{margin-top:9px; border-top:0.5px solid var(--line); padding-top:8px;}
+  .kItem{display:flex; align-items:center; gap:7px; padding:3px 0; font-size:12px; min-width:0;}
+  .kItem .ck{
+    width:15px; height:15px; border-radius:50%; border:1.5px solid #c7c7cc; flex-shrink:0; cursor:pointer;
+    display:grid; place-content:center;
+  }
+  @media (prefers-color-scheme: dark){ .kItem .ck{border-color:#48484e;} }
+  .kItem .ck.on{background:var(--accent); border-color:var(--accent);}
+  .kItem .ck.on::after{content:''; width:4px; height:7px; border:solid #fff; border-width:0 1.5px 1.5px 0; transform:rotate(45deg) translate(-.5px,-.5px);}
+  .kItem .it{flex:1; cursor:pointer; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .kItem .it:hover{color:var(--blue-pill);}
+  .kItem.done .it{color:var(--done-text); text-decoration:line-through;}
+  .kItem .mb{font-size:9.5px; padding:1.5px 7px;}
+  .kItemAdd{border:none; background:transparent; color:var(--sub); cursor:pointer; font-size:11.5px; padding:4px 0 0; font-family:inherit;}
+  .kItemAdd:hover{color:var(--accent);}
+  .kItemInput{
+    width:100%; border:none; border-radius:7px; padding:6px 9px; font-size:12px; margin-top:5px;
+    background:var(--input-bg); color:var(--text); font-family:inherit; display:none;
+  }
+  .kItemInput:focus{outline:2px solid var(--accent);}
+  @keyframes kFlash{0%{box-shadow:0 0 0 3px rgba(49,89,196,.55);}100%{box-shadow:0 1px 2px rgba(0,0,0,.06);}}
+  .kCard.flashK{animation:kFlash 1.2s ease-out;}
+  @media (max-width:719px){
+    #boardBar{padding:2px 12px 10px;}
+    #kanban{flex-direction:column; overflow-x:visible;}
+    .kCol{width:100%; min-height:0;}
+  }
   .editBtn{border:none; background:transparent; color:#c0c0c6; cursor:pointer; font-size:13px; padding:3px 5px; border-radius:7px; transition:all .15s;}
   .editBtn:hover{background:var(--seg-bg); color:var(--text);}
 
@@ -379,16 +422,14 @@
 <div class="toolbar">
   <div class="seg" id="viewSeg">
     <button class="chip active" data-view="mine" onclick="setView(this)">自分のタスク</button>
-    <button class="chip" data-view="all" onclick="setView(this)">みんな</button>
+    <button class="chip" data-view="board" onclick="setView(this)">ボード</button>
     <button class="chip" data-view="done" onclick="setView(this)">完了済み</button>
   </div>
   <div class="seg" id="memberSeg" style="display:none"></div>
-  <div class="seg" id="expandSeg" style="display:none">
-    <button class="chip" onclick="expandAll()">すべて開く</button>
-    <button class="chip" onclick="collapseAll()">すべて閉じる</button>
-  </div>
   <input id="searchBox" type="text" placeholder="🔍 検索" oninput="render(true)">
 </div>
+
+<div id="boardBar"></div>
 
 <main>
   <table id="taskTable">
@@ -404,7 +445,7 @@
     </thead>
     <tbody id="taskBody"></tbody>
   </table>
-  <div id="projCards"></div>
+  <div id="kanban"></div>
   <div id="cards"></div>
   <div id="emptyMsg" class="empty" style="display:none"><div class="big">🎉</div>タスクはありません</div>
 </main>
@@ -649,10 +690,12 @@ let quickDraft = { due: '', priority: '', title: '', assignee: '', memo: '' };
 let addingQuick = false;
 let prevSeen = null; // 前回閲覧時刻（新着判定用）
 let calMonth = null;
-let collapsed = new Set(); // 折りたたみ中の親タスクID（端末ローカル）
+let collapsed = new Set(); // （親タスク選択リストの互換用）
+let currentBoard = '__single'; // 表示中のボード（案件ID or '__single'）
+let creatingProject = false;
 const MAX_DEPTH = 4;
 
-const LS = { tasks:'tt_tasks', cfg:'tt_cfg', settings:'tt_settings', me:'tt_me', seen:'tt_seen', members:'tt_members', collapsed:'tt_collapsed' };
+const LS = { tasks:'tt_tasks', cfg:'tt_cfg', settings:'tt_settings', me:'tt_me', seen:'tt_seen', members:'tt_members', collapsed:'tt_collapsed', board:'tt_board' };
 
 /* ================= 階層ヘルパー ================= */
 function taskById(id){ return tasks.find(x => x.id === id && !x.deleted); }
@@ -753,6 +796,7 @@ function loadLocal(){
   prevSeen = localStorage.getItem(LS.seen) || null;
   localStorage.setItem(LS.seen, nowIso());
   try{ collapsed = new Set(JSON.parse(localStorage.getItem(LS.collapsed) || '[]')); }catch(e){}
+  currentBoard = localStorage.getItem(LS.board) || '__single';
 }
 function saveLocal(){
   localStorage.setItem(LS.tasks, JSON.stringify(tasks));
@@ -879,9 +923,10 @@ function render(preserveOrder){
   renderHero();
   // 自分セレクタ
   $('meSelect').innerHTML = (me ? '' : '<option value="">自分を選択</option>') + memberOptions(me);
-  // メンバーフィルタ（みんなビューのみ）
+  const isBoard = currentView === 'board';
+  // メンバーフィルタ（ボードビューのみ）
   const ms = $('memberSeg');
-  if(currentView === 'all'){
+  if(isBoard){
     ms.style.display = 'inline-flex';
     ms.innerHTML = `<button class="chip ${memberFilter === '' ? 'active' : ''}" data-m="" onclick="setMemberFilter(this)">全員</button>` +
       members.list.map(m => `<button class="chip ${memberFilter === m ? 'active' : ''}" data-m="${esc(m)}" onclick="setMemberFilter(this)">${esc(m)}</button>`).join('');
@@ -889,32 +934,27 @@ function render(preserveOrder){
     ms.style.display = 'none';
   }
 
-  const q = $('searchBox').value.trim();
-  const isTree = currentView === 'all' && !memberFilter && !q;
-  let rows;
-  if(isTree){
-    rows = treeRows();
-    orderCache = rows.map(r => r.t.id);
-  } else {
-    rows = visibleTasks(preserveOrder === true).map(t => ({ t, depth: 1, hasKids: false, isCollapsed: false, flat: true }));
-  }
   const tbody = $('taskBody');
   const cards = $('cards');
   tbody.innerHTML = '';
   cards.innerHTML = '';
-  $('emptyMsg').style.display = rows.length ? 'none' : 'block';
-  $('taskTable').style.display = '';
+  $('boardBar').style.display = isBoard ? 'flex' : 'none';
+  $('kanban').style.display = isBoard ? 'flex' : 'none';
+  $('taskTable').style.display = isBoard ? 'none' : '';
+  cards.style.display = isBoard ? 'none' : '';
 
-  if(currentView !== 'done') tbody.appendChild(buildQuickRow());
-
-  const pc = $('projCards');
-  pc.innerHTML = '';
-  $('expandSeg').style.display = isTree ? 'inline-flex' : 'none';
-  if(isTree){
-    buildProjectCards(pc);
-  } else {
-    for(const row of rows) tbody.appendChild(buildTaskRow(row));
+  if(isBoard){
+    $('emptyMsg').style.display = 'none';
+    renderBoardBar();
+    renderKanban();
+    lastEditedId = null;
+    return;
   }
+
+  const rows = visibleTasks(preserveOrder === true).map(t => ({ t, flat: true }));
+  $('emptyMsg').style.display = rows.length ? 'none' : 'block';
+  if(currentView === 'mine') tbody.appendChild(buildQuickRow());
+  for(const row of rows) tbody.appendChild(buildTaskRow(row));
   for(const row of rows) cards.appendChild(buildMobileCard(row));
   lastEditedId = null;
 }
@@ -935,13 +975,7 @@ function buildTaskRow(row){
   const newPill = isNew(t) ? '<span class="newPill">NEW</span>' : '';
   const stats = row.stats || descendantStats(t.id);
   const prog = stats.total ? `<span class="prog ${stats.done === stats.total ? 'doneAll' : ''}" title="子タスクの完了数">${stats.done}/${stats.total}</span>` : '';
-  const level = row.level ?? row.depth;
-  const indent = row.flat ? 0 : Math.max(0, row.depth - 1) * 18;
-  const lvBar = !row.flat && level >= 2 ? `<span class="lvBar lv${Math.min(level, 4)}"></span>` : '';
-  const twist = !row.flat && row.hasKids
-    ? `<span class="twist" title="折りたたみ">${row.isCollapsed ? '▶' : '▼'}</span>`
-    : '';
-  const crumb = row.flat && t.parentId && parentTitle(t)
+  const crumb = t.parentId && parentTitle(t)
     ? `<div class="parentCrumb">└ ${esc(parentTitle(t))}</div>` : '';
   const canChild = depthOf(t) < MAX_DEPTH && t.status !== 'done';
 
@@ -952,13 +986,11 @@ function buildTaskRow(row){
     ${dateCell('due', t.due, 'dc-due')}
     <td><button class="priBtn${t.priority === '' || t.priority == null ? '' : ' has'}" title="優先度">${t.priority === '' || t.priority == null ? 'ー' : esc(t.priority)}</button></td>
     <td>${stHtml}</td>
-    <td><div class="titleWrap" style="padding-left:${indent}px">${lvBar}${twist}<input type="text" class="f-title" data-field="title" value="${esc(t.title)}">${prog}${newPill}</div>${crumb}</td>
+    <td><div class="titleWrap"><input type="text" class="f-title" data-field="title" value="${esc(t.title)}">${prog}${newPill}</div>${crumb}</td>
     <td><select data-field="assignee">${memberOptions(t.assignee)}</select></td>
     <td>${mbHtml(t.requester)}</td>
     <td><input type="text" class="f-memo" data-field="memo" value="${esc(t.memo || '')}"></td>
     <td class="edit">${canChild ? '<button class="editBtn addChildBtn" title="子タスクを追加">＋</button>' : ''}<button class="editBtn mainEditBtn" title="詳細編集">✎</button></td>`;
-  const tw = tr.querySelector('.twist');
-  if(tw) tw.addEventListener('click', e => { e.stopPropagation(); toggleCollapse(t.id); });
   const acb = tr.querySelector('.addChildBtn');
   if(acb) acb.addEventListener('click', () => openTaskModal(null, t.id));
   tr.querySelector('td.chk input').addEventListener('click', e => { e.stopPropagation(); toggleDone(t.id, e.target.checked); });
@@ -1007,103 +1039,270 @@ function buildMobileCard(row){
   return card;
 }
 
-/* ================= 案件カード ================= */
-function buildProjectCards(container){
-  const act = tasks.filter(t => !t.deleted && t.status !== 'done');
-  const actIds = new Set(act.map(t => t.id));
-  const childMap = new Map();
-  const roots = [];
-  for(const t of act){
-    if(t.parentId && actIds.has(t.parentId)){
-      if(!childMap.has(t.parentId)) childMap.set(t.parentId, []);
-      childMap.get(t.parentId).push(t);
-    } else {
-      roots.push(t);
+/* ================= カンバン（Jooto風ボード） ================= */
+function collectDesc(id){
+  const out = [];
+  const stack = [id];
+  let guard = 0;
+  while(stack.length && guard++ < 2000){
+    const cur = stack.pop();
+    for(const c of tasks){
+      if(!c.deleted && c.parentId === cur){ out.push(c); stack.push(c.id); }
     }
   }
-  roots.sort(taskComparator);
-  for(const arr of childMap.values()) arr.sort(taskComparator);
-  // 子孫を持つ（過去に持っていた）トップ＝案件カード、それ以外＝個別タスク
-  const projects = roots.filter(r => (childMap.get(r.id) || []).length > 0 || descendantStats(r.id).total > 0);
-  const singles = roots.filter(r => !projects.includes(r));
-
-  const subRows = (proj) => {
-    const out = [];
-    const walk = (t, depth) => {
-      const kids = childMap.get(t.id) || [];
-      if(t !== proj){
-        out.push({ t, depth: depth - 1, level: depth, hasKids: kids.length > 0, isCollapsed: collapsed.has(t.id) });
-        if(collapsed.has(t.id)) return;
-      }
-      for(const c of kids) walk(c, Math.min(depth + 1, MAX_DEPTH));
-    };
-    walk(proj, 1);
-    return out;
+  return out;
+}
+function boardProjects(){
+  const tops = tasks.filter(t => !t.deleted && t.status !== 'done' && (!t.parentId || !taskById(t.parentId)));
+  // 子を持つトップ＝案件。作りたての案件（子なし）も選択中ならボード扱い
+  const projects = tops.filter(t =>
+    tasks.some(c => !c.deleted && c.parentId === t.id) || t.id === currentBoard);
+  projects.sort(taskComparator);
+  const singles = tops.filter(t => !projects.includes(t));
+  return { projects, singles };
+}
+function resolveBoard(){
+  const { projects } = boardProjects();
+  if(currentBoard !== '__single' && !projects.some(p => p.id === currentBoard)){
+    currentBoard = projects.length ? projects[0].id : '__single';
+  }
+  return currentBoard;
+}
+function switchBoard(id){
+  currentBoard = id;
+  localStorage.setItem(LS.board, id);
+  render();
+}
+function newProject(){
+  creatingProject = true;
+  openTaskModal(null);
+}
+function renderBoardBar(){
+  resolveBoard();
+  const { projects, singles } = boardProjects();
+  const bar = $('boardBar');
+  bar.innerHTML = '';
+  for(const p of projects){
+    const st = descendantStats(p.id);
+    const b = document.createElement('button');
+    b.className = 'bTab' + (currentBoard === p.id ? ' active' : '');
+    b.innerHTML = `${esc(p.title)}<span class="cnt">${st.done}/${st.total}</span>`;
+    b.addEventListener('click', () => switchBoard(p.id));
+    bar.appendChild(b);
+  }
+  const s = document.createElement('button');
+  s.className = 'bTab' + (currentBoard === '__single' ? ' active' : '');
+  s.innerHTML = `📌 個別タスク<span class="cnt">${singles.length}</span>`;
+  s.addEventListener('click', () => switchBoard('__single'));
+  bar.appendChild(s);
+  const add = document.createElement('button');
+  add.className = 'bTab bAdd';
+  add.textContent = '＋ 新規案件';
+  add.addEventListener('click', newProject);
+  bar.appendChild(add);
+}
+function renderKanban(){
+  const kb = $('kanban');
+  kb.innerHTML = '';
+  const board = resolveBoard();
+  const { singles } = boardProjects();
+  const q = $('searchBox').value.trim().toLowerCase();
+  let cardTasks, doneCards;
+  if(board === '__single'){
+    cardTasks = singles.slice();
+    doneCards = tasks.filter(t => !t.deleted && t.status === 'done'
+      && (!t.parentId || !taskById(t.parentId))
+      && !tasks.some(c => !c.deleted && c.parentId === t.id));
+  } else {
+    cardTasks = tasks.filter(t => !t.deleted && t.status !== 'done' && t.parentId === board);
+    doneCards = tasks.filter(t => !t.deleted && t.status === 'done' && t.parentId === board);
+  }
+  const matches = t => {
+    const pool = [t, ...collectDesc(t.id)];
+    const mOk = !memberFilter || pool.some(x => x.assignee === memberFilter);
+    const qOk = !q || pool.some(x =>
+      (x.title || '').toLowerCase().includes(q) || (x.memo || '').toLowerCase().includes(q));
+    return mOk && qOk;
   };
-
-  for(const proj of projects){
-    const isC = collapsed.has(proj.id);
-    const stats = descendantStats(proj.id);
-    const cls = rowClass(proj);
-    const card = document.createElement('div');
-    card.className = 'projCard';
-    const duePill = proj.due ? `<span class="projDue ${cls}">〆 ${esc(fmtMD(proj.due))}</span>` : '';
-    const newPill = isNew(proj) ? '<span class="newPill">NEW</span>' : '';
-    card.innerHTML = `
-      <div class="projHead ${cls}">
-        <input type="checkbox" class="rnd" title="案件ごと完了にする">
-        <span class="projTwist">${isC ? '▶' : '▼'}</span>
-        <span class="projTitle">${esc(proj.title)}</span>${newPill}
-        <span class="prog ${stats.total && stats.done === stats.total ? 'doneAll' : ''}" title="子タスクの完了数">${stats.done}/${stats.total}</span>
-        ${duePill}
-        ${mbHtml(proj.assignee)}
-        <span class="projBtns"><button class="editBtn addChildBtn" title="子タスクを追加">＋</button><button class="editBtn mainEditBtn" title="編集">✎</button></span>
-      </div>`;
-    const head = card.querySelector('.projHead');
-    head.addEventListener('click', e => {
-      if(e.target.closest('button') || e.target.type === 'checkbox') return;
-      toggleCollapse(proj.id);
-    });
-    head.querySelector('input.rnd').addEventListener('click', e => { e.stopPropagation(); toggleDone(proj.id, e.target.checked); });
-    head.querySelector('.addChildBtn').addEventListener('click', e => { e.stopPropagation(); openTaskModal(null, proj.id); });
-    head.querySelector('.mainEditBtn').addEventListener('click', e => { e.stopPropagation(); openTaskModal(proj.id); });
-    if(!isC){
-      const kidRows = subRows(proj);
-      if(kidRows.length){
-        const tbl = document.createElement('table');
-        tbl.className = 'projTable';
-        tbl.innerHTML = COLGROUP_HTML + '<tbody></tbody>';
-        const tb = tbl.querySelector('tbody');
-        for(const kr of kidRows) tb.appendChild(buildTaskRow(kr));
-        card.appendChild(tbl);
-      } else {
-        const d = document.createElement('div');
-        d.className = 'projEmpty';
-        d.textContent = stats.total > 0 ? '未完了の子タスクはありません 🎉' : '子タスクはありません（＋で追加）';
-        card.appendChild(d);
+  cardTasks = cardTasks.filter(matches);
+  doneCards = doneCards.filter(matches);
+  cardTasks.sort(taskComparator);
+  doneCards.sort((a,b) => (b.doneDate || '').localeCompare(a.doneDate || ''));
+  doneCards = doneCards.slice(0, 20);
+  const cols = [
+    { key: 'todo',  label: '未着手', dot: '#98989f', items: cardTasks.filter(t => t.status === 'todo') },
+    { key: 'doing', label: '進行中', dot: 'var(--doing)', items: cardTasks.filter(t => t.status === 'doing') },
+    { key: 'done',  label: '完了',   dot: '#2e7d54', items: doneCards }
+  ];
+  for(const col of cols) kb.appendChild(buildKanbanCol(col, board));
+}
+function buildKanbanCol(col, board){
+  const el = document.createElement('div');
+  el.className = 'kCol';
+  el.dataset.col = col.key;
+  el.innerHTML = `
+    <div class="kColHead">
+      <span class="dot" style="background:${col.dot}"></span>${col.label}
+      <span class="kCount">${col.items.length}</span>
+      ${col.key !== 'done' ? '<button class="kAddBtn" title="カードを追加">＋</button>' : ''}
+    </div>
+    ${col.key !== 'done' ? '<input type="text" class="kAddInput" placeholder="タイトルを入力して Enter">' : ''}`;
+  const addBtn = el.querySelector('.kAddBtn');
+  const addInput = el.querySelector('.kAddInput');
+  if(addBtn) addBtn.addEventListener('click', () => {
+    addInput.style.display = addInput.style.display === 'block' ? 'none' : 'block';
+    if(addInput.style.display === 'block') addInput.focus();
+  });
+  if(addInput){
+    addInput.addEventListener('keydown', e => {
+      if(e.key === 'Escape'){ addInput.style.display = 'none'; return; }
+      if(e.key === 'Enter' && !e.isComposing && e.keyCode !== 229){
+        e.preventDefault();
+        addKanbanCard(board, col.key, addInput.value);
       }
-    }
-    container.appendChild(card);
+    });
   }
-
-  if(singles.length){
-    const card = document.createElement('div');
-    card.className = 'projCard';
-    card.innerHTML = `<div class="projHead plain"><span class="projTitle">📌 個別タスク</span><span class="prog">${singles.length}件</span></div>`;
-    const tbl = document.createElement('table');
-    tbl.className = 'projTable';
-    tbl.innerHTML = COLGROUP_HTML + '<tbody></tbody>';
-    const tb = tbl.querySelector('tbody');
-    for(const s of singles) tb.appendChild(buildTaskRow({ t: s, depth: 1, level: 1, hasKids: false, isCollapsed: false }));
-    card.appendChild(tbl);
-    container.appendChild(card);
+  el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('dragover'); });
+  el.addEventListener('dragleave', () => el.classList.remove('dragover'));
+  el.addEventListener('drop', e => {
+    e.preventDefault();
+    el.classList.remove('dragover');
+    const id = e.dataTransfer.getData('text/plain');
+    if(id) dropToStatus(id, col.key);
+  });
+  for(const t of col.items) el.appendChild(buildKanbanCard(t));
+  return el;
+}
+function buildKanbanCard(t){
+  const cls = rowClass(t);
+  const stats = descendantStats(t.id);
+  const desc = collectDesc(t.id);
+  desc.sort((a,b) => (a.status === 'done') - (b.status === 'done') || taskComparator(a,b));
+  const el = document.createElement('div');
+  el.className = `kCard ${cls}` + (t.id === lastEditedId ? ' flashK' : '');
+  el.draggable = true;
+  el.addEventListener('dragstart', e => {
+    e.dataTransfer.setData('text/plain', t.id);
+    el.classList.add('dragging');
+  });
+  el.addEventListener('dragend', () => el.classList.remove('dragging'));
+  const meta = [];
+  if(t.due) meta.push(`<span class="kDue ${cls}">〆 ${esc(fmtMD(t.due))}</span>`);
+  if(t.priority !== '' && t.priority != null) meta.push(`<span>優先${esc(t.priority)}</span>`);
+  meta.push(mbHtml(t.assignee));
+  if(t.requester && t.requester !== t.assignee) meta.push(`<span>依頼:</span>${mbHtml(t.requester)}`);
+  if(stats.total) meta.push(`<span class="prog ${stats.done === stats.total ? 'doneAll' : ''}" style="margin-left:0">${stats.done}/${stats.total}</span>`);
+  const newPill = isNew(t) ? '<span class="newPill">NEW</span>' : '';
+  let checklist = '';
+  if(desc.length || t.status !== 'done'){
+    const items = desc.map(c => `
+      <div class="kItem ${c.status === 'done' ? 'done' : ''}" data-id="${esc(c.id)}">
+        <span class="ck ${c.status === 'done' ? 'on' : ''}" title="完了/戻す"></span>
+        <span class="it" title="クリックで詳細">${esc(c.title)}</span>
+        ${c.assignee && c.assignee !== t.assignee ? mbHtml(c.assignee) : ''}
+      </div>`).join('');
+    const adder = (t.status !== 'done' && depthOf(t) < MAX_DEPTH)
+      ? `<button class="kItemAdd">＋ 項目を追加</button><input type="text" class="kItemInput" placeholder="項目名を入力して Enter">`
+      : '';
+    if(items || adder) checklist = `<div class="kChecklist">${items}${adder}</div>`;
+  }
+  el.innerHTML += `
+    <div class="kTitle">${esc(t.title)}${newPill}</div>
+    <div class="kMeta">${meta.join('')}</div>
+    ${checklist}`;
+  el.querySelectorAll('.kItem').forEach(item => {
+    const cid = item.dataset.id;
+    item.querySelector('.ck').addEventListener('click', e => {
+      e.stopPropagation();
+      const c = tasks.find(x => x.id === cid);
+      if(c) toggleDone(cid, c.status !== 'done');
+    });
+    item.querySelector('.it').addEventListener('click', e => {
+      e.stopPropagation();
+      openTaskModal(cid);
+    });
+  });
+  const itemAdd = el.querySelector('.kItemAdd');
+  const itemInput = el.querySelector('.kItemInput');
+  if(itemAdd) itemAdd.addEventListener('click', e => {
+    e.stopPropagation();
+    itemInput.style.display = itemInput.style.display === 'block' ? 'none' : 'block';
+    if(itemInput.style.display === 'block') itemInput.focus();
+  });
+  if(itemInput){
+    itemInput.addEventListener('click', e => e.stopPropagation());
+    itemInput.addEventListener('keydown', e => {
+      if(e.key === 'Escape'){ itemInput.style.display = 'none'; return; }
+      if(e.key === 'Enter' && !e.isComposing && e.keyCode !== 229){
+        e.preventDefault();
+        addChecklistItem(t, itemInput.value);
+      }
+    });
+  }
+  el.addEventListener('click', e => {
+    if(e.target.closest('.ck, .it, .kItemAdd, .kItemInput, button, input')) return;
+    openTaskModal(t.id);
+  });
+  return el;
+}
+function addKanbanCard(board, colKey, rawTitle){
+  const title = (rawTitle || '').trim();
+  if(!title) return;
+  if(!me){ alert('先に右上で「自分」を選択してください'); return; }
+  tasks.push({
+    id: uid(), title,
+    due: null, priority: '',
+    status: colKey, doneDate: null,
+    assignee: me, requester: me,
+    parentId: board === '__single' ? null : board,
+    memo: '', createdAt: nowIso(), updatedAt: nowIso(), deleted: false
+  });
+  lastEditedId = tasks[tasks.length - 1].id;
+  markDirty(); render();
+  // 追加を続けられるよう入力欄を開き直す（古い入力欄からの遅延イベント対策込み）
+  const inp = document.querySelector(`.kCol[data-col="${colKey}"] .kAddInput`);
+  if(inp){ inp.style.display = 'block'; inp.value = ''; inp.focus(); }
+  setTimeout(() => {
+    const i2 = document.querySelector(`.kCol[data-col="${colKey}"] .kAddInput`);
+    if(i2 && i2.value === title) i2.value = '';
+  }, 80);
+}
+function addChecklistItem(parentTask, rawTitle){
+  const title = (rawTitle || '').trim();
+  if(!title) return;
+  if(!me){ alert('先に右上で「自分」を選択してください'); return; }
+  tasks.push({
+    id: uid(), title,
+    due: null, priority: '',
+    status: 'todo', doneDate: null,
+    assignee: parentTask.assignee || me, requester: me,
+    parentId: parentTask.id,
+    memo: '', createdAt: nowIso(), updatedAt: nowIso(), deleted: false
+  });
+  markDirty(); render();
+  // 対象カードの入力欄を開き直す
+  const inputs = document.querySelectorAll('.kItemInput');
+  for(const i of inputs){
+    const cardEl = i.closest('.kCard');
+    if(cardEl && cardEl.querySelector(`.kItem[data-id="${tasks[tasks.length-1].id}"]`)){
+      i.style.display = 'block'; i.value = ''; i.focus();
+      const captured = i;
+      setTimeout(() => { if(captured.value === title) captured.value = ''; }, 80);
+      break;
+    }
   }
 }
-function persistCollapsed(){ localStorage.setItem(LS.collapsed, JSON.stringify([...collapsed])); }
-function expandAll(){ collapsed.clear(); persistCollapsed(); render(); }
-function collapseAll(){
-  collapsed = new Set(tasks.filter(t => !t.deleted && tasks.some(c => !c.deleted && c.parentId === t.id)).map(t => t.id));
-  persistCollapsed(); render();
+function dropToStatus(id, colKey){
+  const t = tasks.find(x => x.id === id);
+  if(!t) return;
+  if(colKey === 'done'){
+    if(t.status !== 'done'){ t.status = 'done'; t.doneDate = todayStr(); showToast('✅ 完了しました'); }
+  } else {
+    t.status = colKey;
+    t.doneDate = null;
+  }
+  t.updatedAt = nowIso();
+  markDirty(); render();
 }
 
 /* ================= クイック追加行 ================= */
@@ -1210,7 +1409,8 @@ function buildParentOptions(excludeTask, selectedId){
 function openTaskModal(id, parentPreset){
   editingId = id || null;
   const t = id ? tasks.find(x => x.id === id) : null;
-  $('taskModalTitle').textContent = t ? 'タスクを編集' : (parentPreset ? '子タスクを追加' : 'タスクを追加');
+  $('taskModalTitle').textContent = t ? 'タスクを編集'
+    : (creatingProject ? '新しい案件を追加' : (parentPreset ? '子タスクを追加' : 'タスクを追加'));
   $('btnDelete').style.display = t ? 'inline-block' : 'none';
   $('f_title').value = t ? t.title : '';
   $('f_due').value = t?.due || '';
@@ -1223,7 +1423,7 @@ function openTaskModal(id, parentPreset){
   $('taskOverlay').classList.add('show');
   if(!t) $('f_title').focus();
 }
-function closeTaskModal(){ $('taskOverlay').classList.remove('show'); editingId = null; }
+function closeTaskModal(){ $('taskOverlay').classList.remove('show'); editingId = null; creatingProject = false; }
 function saveTask(){
   const title = $('f_title').value.trim();
   if(!title){ alert('タイトルを入力してください'); return; }
@@ -1243,6 +1443,11 @@ function saveTask(){
     Object.assign(t, data);
   } else {
     tasks.push(Object.assign({ id: uid(), status: $('f_status').value, doneDate: null, createdAt: nowIso(), deleted: false }, data));
+    // 「＋新規案件」から作った場合はそのボードへ切替
+    if(creatingProject && !data.parentId){
+      currentBoard = tasks[tasks.length - 1].id;
+      localStorage.setItem(LS.board, currentBoard);
+    }
   }
   closeTaskModal(); markDirty(); render();
 }
