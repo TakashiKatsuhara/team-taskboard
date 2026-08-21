@@ -279,6 +279,47 @@
   .kItemInput:focus{outline:2px solid var(--accent);}
   @keyframes kFlash{0%{box-shadow:0 0 0 3px rgba(49,89,196,.55);}100%{box-shadow:0 1px 2px rgba(0,0,0,.06);}}
   .kCard.flashK{animation:kFlash 1.2s ease-out;}
+
+  /* ===== ガント ===== */
+  #ganttWrap{display:none; overflow-x:auto; background:var(--card); border-radius:16px; box-shadow:var(--shadow);}
+  .gHead{display:flex; border-bottom:0.5px solid var(--line);}
+  .gCorner{position:sticky; left:0; z-index:3; background:var(--card); width:250px; flex-shrink:0;
+    padding:6px 12px 4px; font-size:11px; color:var(--sub); border-right:0.5px solid var(--line);
+    display:flex; align-items:flex-end;}
+  .gDay{flex-shrink:0; text-align:center; font-size:10.5px; color:var(--sub); padding:16px 0 4px; position:relative; font-variant-numeric:tabular-nums;}
+  .gDay small{display:block; font-size:9px; margin-top:1px;}
+  .gDay.off{color:#c2c2c8;}
+  @media (prefers-color-scheme: dark){ .gDay.off{color:#55555c;} }
+  .gDay.now span{color:var(--blue-pill); font-weight:800;}
+  .gMon{position:absolute; top:2px; left:3px; font-size:9.5px; font-weight:700; color:var(--text); white-space:nowrap;}
+  .gBody{position:relative;}
+  .gShade{position:absolute; top:0; bottom:0; background:rgba(125,125,135,.07); z-index:0;}
+  .gTodayCol{position:absolute; top:0; bottom:0; background:var(--blue-row); border-left:2px solid var(--blue-pill); z-index:0;}
+  .gRow{position:relative; border-bottom:0.5px solid var(--line); display:flex; align-items:center;}
+  .gRow:last-child{border-bottom:none;}
+  .gLabel{position:sticky; left:0; z-index:2; background:var(--card); width:250px; flex-shrink:0; height:100%;
+    display:flex; align-items:center; gap:7px; padding:0 12px; font-size:12.5px; font-weight:600;
+    border-right:0.5px solid var(--line); cursor:pointer; overflow:hidden; white-space:nowrap;}
+  .gLabel:hover{filter:brightness(.97);}
+  .gLabel .tt{overflow:hidden; text-overflow:ellipsis;}
+  .gLabel .mb{flex-shrink:0;}
+  .gRow.gProj .gLabel{font-weight:800; background:#eef0f4;}
+  @media (prefers-color-scheme: dark){ .gRow.gProj .gLabel{background:#26292e;} }
+  .gBar{position:absolute; top:8px; height:18px; border-radius:6px; background:var(--accent); opacity:.9; cursor:pointer; z-index:1;}
+  .gBar:hover{opacity:1;}
+  .gBar.overdue{background:var(--red);}
+  .gBar.today{background:var(--blue-pill);}
+  .gBar.next{background:var(--next-pill-text);}
+  .gBar.doing{outline:2px solid var(--doing); outline-offset:-2px;}
+  .gBar.done{background:#c9c9ce; opacity:.55; outline:none;}
+  .gDot{position:absolute; top:11px; width:9px; height:9px; transform:rotate(45deg); background:var(--accent);
+    border:2px solid var(--card); z-index:1; cursor:pointer; box-sizing:content-box;}
+  .gDot.overdue{background:var(--red);}
+  .gDot.today{background:var(--blue-pill);}
+  .gDot.next{background:var(--next-pill-text);}
+  .gDot.done{background:#c9c9ce;}
+  .gSpan{position:absolute; top:14px; height:6px; border-radius:99px; background:rgba(85,100,125,.28); z-index:1; cursor:pointer;}
+  @media (prefers-color-scheme: dark){ .gSpan{background:rgba(147,164,192,.35);} }
   @media (max-width:719px){
     #boardBar{padding:2px 12px 10px;}
     #kanban{flex-direction:column; overflow-x:visible;}
@@ -424,6 +465,7 @@
   <div class="seg" id="viewSeg">
     <button class="chip active" data-view="mine" onclick="setView(this)">自分のタスク</button>
     <button class="chip" data-view="board" onclick="setView(this)">ボード</button>
+    <button class="chip" data-view="gantt" onclick="setView(this)">📊 ガント</button>
     <button class="chip" data-view="done" onclick="setView(this)">完了済み</button>
   </div>
   <div class="seg" id="memberSeg" style="display:none"></div>
@@ -447,6 +489,7 @@
     <tbody id="taskBody"></tbody>
   </table>
   <div id="kanban"></div>
+  <div id="ganttWrap"></div>
   <div id="cards"></div>
   <div id="emptyMsg" class="empty" style="display:none"><div class="big">🎉</div>タスクはありません</div>
 </main>
@@ -469,7 +512,11 @@
       <label>タイトル *</label>
       <input type="text" id="f_title">
     </div>
-    <div class="formGrid3">
+    <div class="formGrid">
+      <div class="formRow">
+        <label>開始日（ガント表示用・任意）</label>
+        <input type="date" id="f_start">
+      </div>
       <div class="formRow">
         <label>〆切</label>
         <input type="date" id="f_due">
@@ -694,6 +741,7 @@ let calMonth = null;
 let collapsed = new Set(); // （親タスク選択リストの互換用）
 let currentBoard = '__single'; // 表示中のボード（案件ID or '__single'）
 let creatingProject = false;
+let ganttScrollPending = false;
 const MAX_DEPTH = 4;
 
 const LS = { tasks:'ttdemo_tasks', cfg:'ttdemo_cfg', settings:'ttdemo_settings', me:'ttdemo_me', seen:'ttdemo_seen', members:'ttdemo_members', collapsed:'ttdemo_collapsed', board:'ttdemo_board' };
@@ -847,6 +895,7 @@ function setView(el){
   el.classList.add('active');
   currentView = el.dataset.view;
   memberFilter = '';
+  if(currentView === 'gantt') ganttScrollPending = true;
   render();
 }
 function setMemberFilter(el){
@@ -925,9 +974,10 @@ function render(preserveOrder){
   // 自分セレクタ
   $('meSelect').innerHTML = (me ? '' : '<option value="">自分を選択</option>') + memberOptions(me);
   const isBoard = currentView === 'board';
-  // メンバーフィルタ（ボードビューのみ）
+  const isGantt = currentView === 'gantt';
+  // メンバーフィルタ（ボード・ガントビュー）
   const ms = $('memberSeg');
-  if(isBoard){
+  if(isBoard || isGantt){
     ms.style.display = 'inline-flex';
     ms.innerHTML = `<button class="chip ${memberFilter === '' ? 'active' : ''}" data-m="" onclick="setMemberFilter(this)">全員</button>` +
       members.list.map(m => `<button class="chip ${memberFilter === m ? 'active' : ''}" data-m="${esc(m)}" onclick="setMemberFilter(this)">${esc(m)}</button>`).join('');
@@ -941,13 +991,20 @@ function render(preserveOrder){
   cards.innerHTML = '';
   $('boardBar').style.display = isBoard ? 'flex' : 'none';
   $('kanban').style.display = isBoard ? 'flex' : 'none';
-  $('taskTable').style.display = isBoard ? 'none' : '';
-  cards.style.display = isBoard ? 'none' : '';
+  $('ganttWrap').style.display = isGantt ? 'block' : 'none';
+  $('taskTable').style.display = (isBoard || isGantt) ? 'none' : '';
+  cards.style.display = (isBoard || isGantt) ? 'none' : '';
 
   if(isBoard){
     $('emptyMsg').style.display = 'none';
     renderBoardBar();
     renderKanban();
+    lastEditedId = null;
+    return;
+  }
+  if(isGantt){
+    $('emptyMsg').style.display = 'none';
+    renderGantt();
     lastEditedId = null;
     return;
   }
@@ -1306,6 +1363,92 @@ function dropToStatus(id, colKey){
   markDirty(); render();
 }
 
+/* ================= ガントチャート ================= */
+function renderGantt(){
+  const w = $('ganttWrap');
+  const colW = 26, labelW = 250, rowH = 34;
+  const today = todayStr();
+  const start = addDays(today, -14);
+  const days = 84; // 今日の2週間前〜10週間先
+  const end = addDays(start, days - 1);
+  const idx = ds => Math.round((toDate(ds) - toDate(start)) / 86400000);
+  const totalW = labelW + days * colW;
+
+  let daysHtml = '';
+  for(let i = 0; i < days; i++){
+    const ds = addDays(start, i);
+    const d = toDate(ds);
+    const mon = (d.getDate() === 1 || i === 0) ? `<span class="gMon">${d.getMonth()+1}月</span>` : '';
+    daysHtml += `<div class="gDay${isNonWorkday(ds) ? ' off' : ''}${ds === today ? ' now' : ''}" style="width:${colW}px">${mon}<span>${d.getDate()}</span><small>${WEEKDAYS[d.getDay()]}</small></div>`;
+  }
+  let shades = '';
+  for(let i = 0; i < days; i++){
+    const ds = addDays(start, i);
+    if(ds !== today && isNonWorkday(ds)) shades += `<div class="gShade" style="left:${labelW + i*colW}px; width:${colW}px"></div>`;
+  }
+  shades += `<div class="gTodayCol" style="left:${labelW + idx(today)*colW}px; width:${colW}px"></div>`;
+
+  const barFor = t => {
+    let s = t.startDate, e = t.due;
+    if(!s && !e) return '';
+    if(!s) s = e;
+    if(!e) e = s;
+    if(e < s) [s, e] = [e, s];
+    if(e < start || s > end) return '';
+    const b0 = Math.max(0, idx(s)), b1 = Math.min(days - 1, idx(e));
+    let cls = t.status === 'done' ? 'done' : (rowClass(t) || '');
+    if(t.status === 'doing') cls += ' doing';
+    if(s === e) return `<div class="gDot ${cls}" data-id="${esc(t.id)}" style="left:${labelW + b0*colW + colW/2 - 6}px" title="${esc(t.title)} 〆${esc(fmtMD(e))}"></div>`;
+    return `<div class="gBar ${cls}" data-id="${esc(t.id)}" style="left:${labelW + b0*colW + 2}px; width:${(b1 - b0 + 1)*colW - 4}px" title="${esc(t.title)} (${esc(fmtMD(s))}〜${esc(fmtMD(e))})"></div>`;
+  };
+  const projSpan = p => {
+    const kids = tasks.filter(c => !c.deleted && c.parentId === p.id);
+    let mn = p.startDate || null, mx = p.due || null;
+    for(const k of kids){
+      const s = k.startDate || k.due, e = k.due || k.startDate;
+      if(s && (!mn || s < mn)) mn = s;
+      if(e && (!mx || e > mx)) mx = e;
+    }
+    if(!mn || !mx || mx < start || mn > end) return '';
+    const b0 = Math.max(0, idx(mn)), b1 = Math.min(days - 1, idx(mx));
+    return `<div class="gSpan" data-id="${esc(p.id)}" title="${esc(p.title)}" style="left:${labelW + b0*colW + 2}px; width:${(b1 - b0 + 1)*colW - 4}px"></div>`;
+  };
+  const filterOk = t => !memberFilter || t.assignee === memberFilter;
+
+  const rowsHtml = [];
+  const addRow = (t, isProj) => {
+    const right = isProj ? projSpan(t) : barFor(t);
+    const label = isProj
+      ? `<span class="tt">${esc(t.title)}</span><span class="prog">${descendantStats(t.id).done}/${descendantStats(t.id).total}</span>`
+      : `<span class="tt">${esc(t.title)}</span>${mbHtml(t.assignee)}`;
+    rowsHtml.push(`<div class="gRow${isProj ? ' gProj' : ''}" style="height:${rowH}px; width:${totalW}px">
+      <div class="gLabel" data-id="${esc(t.id)}" title="${esc(t.title)}">${label}</div>${right}</div>`);
+  };
+
+  const { projects, singles } = boardProjects();
+  for(const p of projects){
+    addRow(p, true);
+    const kids = tasks.filter(c => !c.deleted && c.parentId === p.id && filterOk(c));
+    kids.sort(taskComparator);
+    for(const k of kids) addRow(k, false);
+  }
+  const sg = singles.filter(filterOk);
+  if(sg.length){
+    rowsHtml.push(`<div class="gRow gProj" style="height:${rowH}px; width:${totalW}px"><div class="gLabel"><span class="tt">📌 個別タスク</span></div></div>`);
+    for(const s of sg) addRow(s, false);
+  }
+
+  w.innerHTML = `
+    <div class="gHead" style="width:${totalW}px"><div class="gCorner">案件 / タスク</div>${daysHtml}</div>
+    <div class="gBody" style="width:${totalW}px">${shades}${rowsHtml.join('')}</div>`;
+  w.querySelectorAll('[data-id]').forEach(el =>
+    el.addEventListener('click', () => openTaskModal(el.dataset.id)));
+  if(ganttScrollPending){
+    ganttScrollPending = false;
+    requestAnimationFrame(() => { w.scrollLeft = Math.max(0, (idx(today) - 4) * colW); });
+  }
+}
+
 /* ================= クイック追加行 ================= */
 function buildQuickRow(){
   const tr = document.createElement('tr');
@@ -1414,6 +1557,7 @@ function openTaskModal(id, parentPreset){
     : (creatingProject ? '新しい案件を追加' : (parentPreset ? '子タスクを追加' : 'タスクを追加'));
   $('btnDelete').style.display = t ? 'inline-block' : 'none';
   $('f_title').value = t ? t.title : '';
+  $('f_start').value = t?.startDate || '';
   $('f_due').value = t?.due || '';
   $('f_priority').value = t?.priority ?? '';
   $('f_status').value = t && t.status === 'doing' ? 'doing' : 'todo';
@@ -1430,6 +1574,7 @@ function saveTask(){
   if(!title){ alert('タイトルを入力してください'); return; }
   const data = {
     title,
+    startDate: $('f_start').value || null,
     due: $('f_due').value || null,
     priority: $('f_priority').value === '' ? '' : Number($('f_priority').value),
     assignee: $('f_assignee').value,
