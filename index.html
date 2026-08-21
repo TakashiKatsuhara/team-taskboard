@@ -765,6 +765,11 @@ const LS = { tasks:'tt_tasks', cfg:'tt_cfg', settings:'tt_settings', me:'tt_me',
 
 /* ================= 階層ヘルパー ================= */
 function taskById(id){ return tasks.find(x => x.id === id && !x.deleted); }
+function hasActiveParent(t){ // 親が存在し、かつ未完了なら true
+  if(!t.parentId) return false;
+  const p = taskById(t.parentId);
+  return !!(p && p.status !== 'done');
+}
 function depthOf(t){
   let d = 1, cur = t, guard = 0;
   while(cur && cur.parentId && guard++ < 10){
@@ -875,9 +880,18 @@ function getCfg(){
 }
 
 /* ================= 完了・状態 ================= */
+function confirmCascade(t){
+  const open = collectDesc(t.id).filter(c => c.status !== 'done');
+  if(!open.length) return true;
+  if(!confirm(`「${t.title}」には未完了の子タスクが${open.length}件あります。\nまとめて完了にしますか？`)) return false;
+  const now = nowIso(), td = todayStr();
+  for(const c of open){ c.status = 'done'; c.doneDate = td; c.updatedAt = now; }
+  return true;
+}
 function toggleDone(id, checked){
   const t = tasks.find(x => x.id === id);
   if(!t) return;
+  if(checked && !confirmCascade(t)){ render(); return; }
   t.status = checked ? 'done' : 'todo';
   t.doneDate = checked ? todayStr() : null;
   t.updatedAt = nowIso();
@@ -1137,7 +1151,7 @@ function collectDesc(id){
   return out;
 }
 function boardProjects(){
-  const tops = tasks.filter(t => !t.deleted && t.status !== 'done' && (!t.parentId || !taskById(t.parentId)));
+  const tops = tasks.filter(t => !t.deleted && t.status !== 'done' && !hasActiveParent(t));
   // 子を持つトップ＝案件。作りたての案件（子なし）も選択中ならボード扱い
   const projects = tops.filter(t =>
     tasks.some(c => !c.deleted && c.parentId === t.id) || t.id === currentBoard);
@@ -1198,7 +1212,7 @@ function renderKanban(){
   if(board === '__single'){
     cardTasks = singles.slice();
     doneCards = tasks.filter(t => !t.deleted && t.status === 'done'
-      && (!t.parentId || !taskById(t.parentId))
+      && !hasActiveParent(t)
       && !tasks.some(c => !c.deleted && c.parentId === t.id));
   } else {
     cardTasks = tasks.filter(t => !t.deleted && t.status !== 'done' && t.parentId === board);
@@ -1294,7 +1308,7 @@ function buildKanbanCard(t){
       <div class="kItem ${c.status === 'done' ? 'done' : ''}" data-id="${esc(c.id)}">
         <span class="ck ${c.status === 'done' ? 'on' : ''}" title="完了/戻す"></span>
         <span class="it" title="クリックで詳細">${esc(c.title)}</span>
-        ${c.assignee && c.assignee !== t.assignee ? mbHtml(c.assignee) : ''}
+        ${c.assignee ? mbHtml(c.assignee) : ''}
       </div>`).join('');
     const adder = (t.status !== 'done' && depthOf(t) < MAX_DEPTH)
       ? `<button class="kItemAdd">＋ 項目を追加</button><input type="text" class="kItemInput" placeholder="項目名を入力して Enter">`
@@ -1396,7 +1410,10 @@ function dropToStatus(id, colKey){
   const t = tasks.find(x => x.id === id);
   if(!t) return;
   if(colKey === 'done'){
-    if(t.status !== 'done'){ t.status = 'done'; t.doneDate = todayStr(); showToast('✅ 完了しました'); }
+    if(t.status !== 'done'){
+      if(!confirmCascade(t)){ render(); return; }
+      t.status = 'done'; t.doneDate = todayStr(); showToast('✅ 完了しました');
+    }
   } else {
     t.status = colKey;
     t.doneDate = null;
@@ -1512,8 +1529,9 @@ function renderGantt(){
 
   const { projects, singles } = boardProjects();
   for(const p of projects){
-    addRow(p, true);
     const kids = tasks.filter(c => !c.deleted && c.parentId === p.id && filterOk(c));
+    if(memberFilter && !kids.length && !filterOk(p)) continue;
+    addRow(p, true);
     kids.sort(taskComparator);
     for(const k of kids) addRow(k, false);
   }
@@ -1643,6 +1661,10 @@ function buildParentOptions(excludeTask, selectedId){
     if(r.depth >= MAX_DEPTH) continue;
     const label = '　'.repeat(r.depth - 1) + (p.title.length > 40 ? p.title.slice(0, 40) + '…' : p.title);
     html += `<option value="${esc(p.id)}" ${p.id === selectedId ? 'selected' : ''}>${esc(label)}</option>`;
+  }
+  if(selectedId && !html.includes(`value="${esc(selectedId)}"`)){
+    const cur = tasks.find(x => x.id === selectedId && !x.deleted);
+    if(cur) html += `<option value="${esc(cur.id)}" selected>${esc(cur.title)}${cur.status === 'done' ? '（完了済み）' : ''}</option>`;
   }
   return html;
 }
