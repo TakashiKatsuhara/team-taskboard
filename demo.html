@@ -853,7 +853,7 @@ function isNonWorkday(s){
 function nextBusinessDay(s){ let d = addDays(s, 1); while(isNonWorkday(d)) d = addDays(d, 1); return d; }
 
 /* ================= 状態 ================= */
-const DEFAULT_MEMBERS = ['勝原隆','杉信','中河','大森','椿','井上'];
+const DEFAULT_MEMBERS = ['メンバー1','メンバー2','メンバー3','メンバー4','メンバー5','メンバー6'];
 const MEMBER_COLORS = [ // 9色＋予備グレー（10人目以降は循環）
   ['rgba(49,89,196,.13)', '#3159c4'],   // 青
   ['rgba(46,125,84,.13)', '#2e7d54'],   // 緑
