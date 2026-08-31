@@ -409,6 +409,18 @@
   .qPlus{color:var(--accent); font-weight:700; font-size:16px;}
   tr.quickAdd input::placeholder{color:#b0b1b8;}
   .qAdd{color:var(--accent); font-weight:700;}
+  tr.quickAdd.pending td{background:rgba(196,146,58,.10); border-bottom-color:#caa14a;}
+  tr.quickAdd.pending td:first-child{box-shadow:inset 3px 0 0 #b8862f;}
+  .qTitleWrap{display:flex; align-items:center; gap:6px;}
+  .qTitleWrap .f-title{flex:1; min-width:0;}
+  .qPending{
+    display:none; font-size:10.5px; font-weight:700; color:#96690f;
+    background:rgba(196,146,58,.18); border-radius:999px; padding:2.5px 10px;
+    white-space:nowrap; flex-shrink:0;
+  }
+  @media (prefers-color-scheme: dark){ .qPending{color:#d9a84e;} }
+  tr.quickAdd.pending .qPending{display:inline-block;}
+  tr.quickAdd.pending .qAdd{background:var(--accent); color:#fff; border-radius:7px; padding:3px 11px;}
 
   /* ===== モバイル：カード ===== */
   #cards{display:none;}
@@ -699,7 +711,7 @@
 
     <div class="settingsSection">
       <h3>🧭 開発フェーズ（開発スケジュールの列）</h3>
-      <div class="hint" style="margin-bottom:6px">カンマ区切りで編集できます（チーム全員に同期）。</div>
+      <div class="hint" style="margin-bottom:6px">カンマ区切りで編集できます（チーム全員に同期）。列名を変更すると、旧名のままのプロジェクトは「フェーズ未設定」列に移るので、ドラッグで配置し直してください。</div>
       <div class="formRow"><input type="text" id="s_phases"></div>
     </div>
 
@@ -1373,11 +1385,13 @@ function renderKanban(){
   doneCards = doneCards.filter(matches);
   cardTasks.sort(taskComparator);
   doneCards.sort((a,b) => (b.doneDate || '').localeCompare(a.doneDate || ''));
+  const doneTotal = doneCards.length;
   doneCards = doneCards.slice(0, 20);
+  const doneHidden = doneTotal - doneCards.length;
   const cols = [
     { key: 'todo',  label: '未着手', dot: '#98989f', items: cardTasks.filter(t => t.status === 'todo') },
     { key: 'doing', label: '進行中', dot: 'var(--doing)', items: cardTasks.filter(t => t.status === 'doing') },
-    { key: 'done',  label: '完了',   dot: '#2e7d54', items: doneCards }
+    { key: 'done',  label: '完了',   dot: '#2e7d54', items: doneCards, hidden: doneHidden }
   ];
   for(const col of cols) kb.appendChild(buildKanbanCol(col, board));
 }
@@ -1416,6 +1430,12 @@ function buildKanbanCol(col, board){
     if(id) dropToStatus(id, col.key);
   });
   for(const t of col.items) el.appendChild(buildKanbanCard(t));
+  if(col.hidden){
+    const d = document.createElement('div');
+    d.className = 'pEmpty';
+    d.textContent = `他${col.hidden}件は「完了済み」タブで確認できます`;
+    el.appendChild(d);
+  }
   if(!col.items.length){
     const ph = document.createElement('div');
     ph.className = 'kEmpty';
@@ -1972,7 +1992,7 @@ function buildQuickRow(){
     <td class="dateCell"><span class="dateText ${quickDraft.due ? '' : 'dateEmpty'}">${quickDraft.due ? esc(fmtMD(quickDraft.due)) : 'ー'}</span><input type="date" class="dateInput" data-q="due" value="${esc(quickDraft.due)}"></td>
     <td><button class="priBtn qPri${quickDraft.priority === '' ? '' : ' has'}">${quickDraft.priority === '' ? 'ー' : esc(quickDraft.priority)}</button></td>
     <td><span class="lastInfo">未着手</span></td>
-    <td><input type="text" class="f-title" data-q="title" placeholder="新しいタスクを入力して Enter" value="${esc(quickDraft.title)}"></td>
+    <td><div class="qTitleWrap"><input type="text" class="f-title" data-q="title" placeholder="新しいタスクを入力して Enter" value="${esc(quickDraft.title)}"><span class="qPending">未登録 — Enterで追加</span></div></td>
     <td><select data-q="assignee">${memberOptions(defAssignee)}</select></td>
     <td>${mbHtml(me)}</td>
     <td><input type="text" class="f-memo" data-q="memo" placeholder="メモ" value="${esc(quickDraft.memo)}"></td>
@@ -1982,10 +2002,12 @@ function buildQuickRow(){
     inp.addEventListener('input', e => {
       if(addingQuick || !inp.isConnected) return;
       quickDraft[f] = e.target.value;
+      updateQuickPending();
     });
     inp.addEventListener('change', e => {
       if(addingQuick || !inp.isConnected) return;
       quickDraft[f] = e.target.value;
+      updateQuickPending();
       if(inp.classList.contains('dateInput')) render(true);
     });
     inp.addEventListener('keydown', e => {
@@ -2004,10 +2026,20 @@ function buildQuickRow(){
       quickDraft.priority = v;
       e.target.textContent = v === '' ? 'ー' : v;
       e.target.classList.toggle('has', v !== '');
+      updateQuickPending();
     });
   });
   tr.querySelector('.qAdd').addEventListener('click', addQuickTask);
+  if(quickHasDraft()) tr.classList.add('pending');
   return tr;
+}
+function quickHasDraft(){
+  return !!((quickDraft.title || '').trim() || (quickDraft.memo || '').trim()
+    || quickDraft.due || quickDraft.priority !== '');
+}
+function updateQuickPending(){
+  const tr = document.querySelector('tr.quickAdd');
+  if(tr) tr.classList.toggle('pending', quickHasDraft());
 }
 function addQuickTask(){
   const title = (quickDraft.title || '').trim();
@@ -2023,6 +2055,10 @@ function addQuickTask(){
     memo: quickDraft.memo || '',
     createdAt: nowIso(), updatedAt: nowIso(), deleted: false
   });
+  const addedAssignee = quickDraft.assignee || me;
+  if(addedAssignee !== me){
+    showToast(`📨 ${addedAssignee}さんへの依頼として登録しました（相手の「自分のタスク」とボードに表示されます）`);
+  }
   addingQuick = true;
   quickDraft = { due: '', priority: '', title: '', assignee: quickDraft.assignee, memo: '' };
   lastEditedId = tasks[tasks.length - 1].id;
@@ -2125,7 +2161,14 @@ function openTaskModal(id, parentPreset){
   $('f_start').value = t?.startDate || '';
   $('f_due').value = t?.due || '';
   $('f_priority').value = t?.priority ?? '';
-  $('f_status').value = t && t.status === 'doing' ? 'doing' : 'todo';
+  if(t && t.status === 'done'){
+    $('f_status').innerHTML = '<option value="done" selected>完了（一覧の丸チェックで戻せます）</option>';
+    $('f_status').disabled = true;
+  } else {
+    $('f_status').disabled = false;
+    $('f_status').innerHTML = '<option value="todo">未着手</option><option value="doing">進行中</option>';
+    $('f_status').value = t && t.status === 'doing' ? 'doing' : 'todo';
+  }
   $('f_assignee').innerHTML = memberOptions(t?.assignee || me || members.list[0]);
   $('f_requester').innerHTML = memberOptions(t?.requester || me || members.list[0]);
   modalParent = t?.parentId || parentPreset || '';

@@ -69,7 +69,7 @@ function seedDemo(){
 }
 function resetDemo(){
   if(!confirm('デモデータを初期状態に戻しますか？')) return;
-  ['ttdemo_tasks','ttdemo_cfg','ttdemo_settings','ttdemo_me','ttdemo_seen','ttdemo_members','ttdemo_collapsed','ttdemo_board'].forEach(k => localStorage.removeItem(k));
+  ['ttdemo_tasks','ttdemo_cfg','ttdemo_settings','ttdemo_me','ttdemo_seen','ttdemo_members','ttdemo_collapsed','ttdemo_board','ttdemo_gscale','ttdemo_gmode'].forEach(k => localStorage.removeItem(k));
   tasks = [];
   me = '';
   currentBoard = '__single';
