@@ -301,6 +301,8 @@
   .pFill{height:100%; border-radius:99px; background:linear-gradient(90deg, var(--accent), var(--next-pill-text)); transition:width .4s;}
   .lateBadge{font-size:10.5px; font-weight:700; color:#fff; background:var(--red); border-radius:999px; padding:2px 8px;}
   .pEmpty{font-size:12px; color:var(--sub); padding:8px 4px;}
+  .pCol.pUnset{background:transparent; border:1.5px dashed var(--line);}
+  .pCol.pUnset .pCard{opacity:.85;}
   @media (max-width:719px){
     #pipeline{flex-direction:column; overflow-x:visible;}
     .pCol{width:100%;}
@@ -489,7 +491,7 @@
 <div class="toolbar">
   <div class="seg" id="viewSeg">
     <button class="chip active" data-view="mine" onclick="setView(this)">自分のタスク</button>
-    <button class="chip" data-view="pipeline" onclick="setView(this)">🧭 案件</button>
+    <button class="chip" data-view="pipeline" onclick="setView(this)">🧭 開発スケジュール</button>
     <button class="chip" data-view="board" onclick="setView(this)">ボード</button>
     <button class="chip" data-view="gantt" onclick="setView(this)">📊 ガント</button>
     <button class="chip" data-view="done" onclick="setView(this)">完了済み</button>
@@ -580,7 +582,7 @@
       <select id="f_parent"></select>
     </div>
     <div class="formRow">
-      <label>開発フェーズ（案件＝トップ階層で使用。🧭案件ビューの列に対応）</label>
+      <label>開発フェーズ（開発案件のみ設定。🧭開発スケジュールの列に対応）</label>
       <select id="f_phase"></select>
     </div>
     <div class="formRow">
@@ -610,7 +612,7 @@
     </div>
 
     <div class="settingsSection">
-      <h3>🧭 開発フェーズ（案件ビューの列）</h3>
+      <h3>🧭 開発フェーズ（開発スケジュールの列）</h3>
       <div class="hint" style="margin-bottom:6px">カンマ区切りで編集できます（チーム全員に同期）。</div>
       <div class="formRow"><input type="text" id="s_phases"></div>
     </div>
@@ -1464,12 +1466,12 @@ function dropToStatus(id, colKey){
 /* ================= 案件パイプライン ================= */
 function projectPhase(p){
   const ph = getPhases();
-  return ph.includes(p.phase) ? p.phase : ph[0];
+  return ph.includes(p.phase) ? p.phase : null;
 }
 function setPhase(id, phase){
   const t = tasks.find(x => x.id === id);
   if(!t) return;
-  t.phase = phase;
+  t.phase = phase || null;
   t.updatedAt = nowIso();
   markDirty(); render();
 }
@@ -1522,19 +1524,24 @@ function renderPipeline(){
   wrap.innerHTML = '';
   const { projects } = boardProjects();
   const phases = getPhases();
-  for(const ph of phases){
+  const cols = [
+    ...phases.map(p => ({ key: p, label: p, unset: false })),
+    { key: '', label: 'フェーズ未設定', unset: true }
+  ];
+  for(const c of cols){
     const col = document.createElement('div');
-    col.className = 'kCol pCol';
-    col.dataset.phase = ph;
-    const items = projects.filter(p => projectPhase(p) === ph);
-    col.innerHTML = `<div class="kColHead"><span class="dot" style="background:var(--accent)"></span>${esc(ph)}<span class="kCount">${items.length}</span></div>`;
+    col.className = 'kCol pCol' + (c.unset ? ' pUnset' : '');
+    col.dataset.phase = c.key;
+    const items = projects.filter(p => (projectPhase(p) || '') === c.key);
+    col.innerHTML = `<div class="kColHead"><span class="dot" style="background:${c.unset ? '#98989f' : 'var(--accent)'}"></span>${esc(c.label)}<span class="kCount">${items.length}</span></div>` +
+      (c.unset ? '<div class="hint" style="padding:0 4px 8px">開発案件はドラッグでDRフェーズへ。開発以外の案件はここのままでOK</div>' : '');
     col.addEventListener('dragover', e => { e.preventDefault(); col.classList.add('dragover'); });
     col.addEventListener('dragleave', () => col.classList.remove('dragover'));
     col.addEventListener('drop', e => {
       e.preventDefault();
       col.classList.remove('dragover');
       const id = e.dataTransfer.getData('text/plain');
-      if(id) setPhase(id, ph);
+      if(id) setPhase(id, c.key);
     });
     if(!items.length){
       const d = document.createElement('div');
@@ -1807,7 +1814,7 @@ function openTaskModal(id, parentPreset){
   $('f_assignee').innerHTML = memberOptions(t?.assignee || me || members.list[0]);
   $('f_requester').innerHTML = memberOptions(t?.requester || me || members.list[0]);
   $('f_parent').innerHTML = buildParentOptions(t, t?.parentId || parentPreset || '');
-  $('f_phase').innerHTML = '<option value="">ー（未設定＝最初の列）</option>' +
+  $('f_phase').innerHTML = '<option value="">ー（開発スケジュール対象外）</option>' +
     getPhases().map(p => `<option value="${esc(p)}" ${t?.phase === p ? 'selected' : ''}>${esc(p)}</option>`).join('');
   $('f_memo').value = t?.memo || '';
   $('taskOverlay').classList.add('show');

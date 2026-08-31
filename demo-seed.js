@@ -48,7 +48,7 @@ function seedDemo(){
   );
 
   // ===== 案件3: オンリーワン価格改定 =====
-  const p3 = mk({ title: 'オンリーワン価格改定', assignee: '中河', phase: '量産準備〜DR-4' });
+  const p3 = mk({ title: 'オンリーワン価格改定', assignee: '中河' });
   list.push(p3);
   list.push(
     mk({ title: '価格改定書ドラフト', parentId: p3.id, startDate: T, due: D(5), status: 'doing', assignee: '中河', priority: 2 }),
