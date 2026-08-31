@@ -2513,6 +2513,16 @@ async function saveSettings(){
     token: $('s_token').value.trim()
   };
   const hasCfg = cfg.owner && cfg.repo && cfg.token;
+  // 同期先が変わった場合はローカルを破棄してから取得し直す（別リポジトリへの誤アップロード防止）
+  const prevCfg = getCfg();
+  const syncTarget = c => c ? `${c.owner}/${c.repo}/${c.branch}/${c.path}` : '';
+  if(hasCfg && prevCfg && syncTarget(prevCfg) !== syncTarget(cfg)){
+    if(!confirm('同期先リポジトリが変更されています。\nこの端末のローカルデータを破棄して、新しい同期先から取得し直します。よろしいですか？\n（キャンセルすると設定変更を中止します）')) return;
+    tasks = [];
+    orderCache = [];
+    ghSha = null;
+    clearTimeout(pushTimer);
+  }
   if(hasCfg) localStorage.setItem(LS.cfg, JSON.stringify(cfg));
   else localStorage.removeItem(LS.cfg);
   closeSettings();
