@@ -852,7 +852,7 @@ function isNonWorkday(s){
 function nextBusinessDay(s){ let d = addDays(s, 1); while(isNonWorkday(d)) d = addDays(d, 1); return d; }
 
 /* ================= 状態 ================= */
-const DEFAULT_MEMBERS = ['杉信','中河','椿','大森','井上'];
+const DEFAULT_MEMBERS = ['勝原隆','杉信','中河','大森','椿','井上'];
 const MEMBER_COLORS = [ // 9色＋予備グレー（10人目以降は循環）
   ['rgba(49,89,196,.13)', '#3159c4'],   // 青
   ['rgba(46,125,84,.13)', '#2e7d54'],   // 緑
@@ -1145,6 +1145,11 @@ function renderHero(){
 function memberOptions(selected){
   return members.list.map(m => `<option value="${esc(m)}" ${m === selected ? 'selected' : ''}>${esc(m)}</option>`).join('');
 }
+function assigneeOptions(selected){
+  const extra = selected && !members.list.includes(selected)
+    ? `<option value="${esc(selected)}" selected>${esc(selected)}（未登録）</option>` : '';
+  return extra + memberOptions(selected);
+}
 
 function render(preserveOrder){
   renderHero();
@@ -1236,7 +1241,7 @@ function buildTaskRow(row){
     <td><button class="priBtn${t.priority === '' || t.priority == null ? '' : ' has'}" title="優先度">${t.priority === '' || t.priority == null ? 'ー' : esc(t.priority)}</button></td>
     <td>${stHtml}</td>
     <td><div class="titleWrap"><input type="text" class="f-title" data-field="title" value="${esc(t.title)}">${prog}${newPill}</div>${crumb}</td>
-    <td><select data-field="assignee">${memberOptions(t.assignee)}</select></td>
+    <td><select data-field="assignee">${assigneeOptions(t.assignee)}</select></td>
     <td>${mbHtml(t.requester)}</td>
     <td><input type="text" class="f-memo" data-field="memo" value="${esc(t.memo || '')}"></td>
     <td class="edit">${canChild ? '<button class="editBtn addChildBtn" title="子タスクを追加">＋</button>' : ''}<button class="editBtn mainEditBtn" title="詳細編集">✎</button></td>`;
@@ -2169,8 +2174,8 @@ function openTaskModal(id, parentPreset){
     $('f_status').innerHTML = '<option value="todo">未着手</option><option value="doing">進行中</option>';
     $('f_status').value = t && t.status === 'doing' ? 'doing' : 'todo';
   }
-  $('f_assignee').innerHTML = memberOptions(t?.assignee || me || members.list[0]);
-  $('f_requester').innerHTML = memberOptions(t?.requester || me || members.list[0]);
+  $('f_assignee').innerHTML = assigneeOptions(t?.assignee || me || members.list[0]);
+  $('f_requester').innerHTML = assigneeOptions(t?.requester || me || members.list[0]);
   modalParent = t?.parentId || parentPreset || '';
   $('f_parentBtn').textContent = taskPathLabel(modalParent);
   $('f_phase').innerHTML = '<option value="">ー（開発スケジュール対象外）</option>' +
