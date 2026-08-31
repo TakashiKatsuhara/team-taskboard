@@ -210,7 +210,7 @@
   @media (prefers-color-scheme: dark){ .prog.doneAll{color:#5fb886;} }
   .parentCrumb{font-size:10.5px; color:var(--sub); padding-left:20px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 
-  /* ===== ボードバー（案件切替） ===== */
+  /* ===== ボードバー（プロジェクト切替） ===== */
   #boardBar{display:none; gap:8px; padding:2px 20px 10px; overflow-x:auto; align-items:center;}
   .bTab{
     border:none; border-radius:999px; padding:8px 16px; font-size:13px; font-weight:600; cursor:pointer;
@@ -294,7 +294,7 @@
   .gLegend{display:flex; gap:14px; flex-wrap:wrap; padding:8px 12px; font-size:11px; color:var(--sub); border-top:0.5px solid var(--line); position:sticky; left:0; width:fit-content;}
   .gLegend i{display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:4px; vertical-align:-1px;}
 
-  /* ===== 案件パイプライン ===== */
+  /* ===== プロジェクトパイプライン ===== */
   #pipeline{display:none; gap:12px; align-items:flex-start; overflow-x:auto; padding-bottom:30px;}
   .pCol{width:300px;}
   .pCard{cursor:pointer;}
@@ -549,7 +549,7 @@
   </div>
   <div class="seg" id="ganttModeSeg" style="display:none">
     <button class="chip" data-gmode="detail" onclick="setGanttMode(this)">詳細</button>
-    <button class="chip" data-gmode="proj" onclick="setGanttMode(this)">案件のみ</button>
+    <button class="chip" data-gmode="proj" onclick="setGanttMode(this)">プロジェクトのみ</button>
   </div>
   <input id="searchBox" type="text" placeholder="🔍 検索" oninput="render(true)">
 </div>
@@ -572,7 +572,7 @@
   </table>
   <div id="kanban"></div>
   <div id="pipeTools">
-    <button class="btnAddHol" onclick="openTplModal()">＋ DRテンプレートから案件作成</button>
+    <button class="btnAddHol" onclick="openTplModal()">＋ DRテンプレートからプロジェクト作成</button>
     <span class="hint" style="margin-left:10px">開発スケジュール原紙の工程一式を量産開始日から逆算して自動作成します</span>
   </div>
   <div id="pipeline"></div>
@@ -633,11 +633,11 @@
       </div>
     </div>
     <div class="formRow">
-      <label>親タスク（案件・工程の下にぶら下げる場合に選択）</label>
-      <button type="button" id="f_parentBtn" class="ppBtn">なし（トップ階層＝案件）</button>
+      <label>親タスク（プロジェクト・工程の下にぶら下げる場合に選択）</label>
+      <button type="button" id="f_parentBtn" class="ppBtn">なし（トップ階層＝プロジェクト）</button>
     </div>
     <div class="formRow">
-      <label>開発フェーズ（開発案件のみ設定。🧭開発スケジュールの列に対応）</label>
+      <label>開発フェーズ（開発プロジェクトのみ設定。🧭開発スケジュールの列に対応）</label>
       <select id="f_phase"></select>
     </div>
     <div class="formRow">
@@ -655,14 +655,14 @@
 <!-- テンプレート作成モーダル -->
 <div class="overlay" id="tplOverlay">
   <div class="modal">
-    <h2>DRテンプレートから案件を作成</h2>
+    <h2>DRテンプレートからプロジェクトを作成</h2>
     <div class="formRow">
-      <label>案件名（商品名） *</label>
+      <label>プロジェクト名（商品名） *</label>
       <input type="text" id="f_tpl_title" placeholder="例: 新型宅配ボックス">
     </div>
     <div class="formGrid">
       <div class="formRow">
-        <label>PL（案件担当）</label>
+        <label>PL（プロジェクト担当）</label>
         <select id="f_tpl_pl"></select>
       </div>
       <div class="formRow">
@@ -869,7 +869,7 @@ let addingQuick = false;
 let prevSeen = null; // 前回閲覧時刻（新着判定用）
 let calMonth = null;
 let collapsed = new Set(); // （親タスク選択リストの互換用）
-let currentBoard = '__single'; // 表示中のボード（案件ID or '__single'）
+let currentBoard = '__single'; // 表示中のボード（プロジェクトID or '__single'）
 let creatingProject = false;
 let ganttScrollPending = false;
 const DEFAULT_PHASES = ['企画〜DR-1','試作〜DR-2','量産試作〜DR-3','量産準備〜DR-4','量産開始'];
@@ -877,8 +877,8 @@ function getPhases(){
   return (Array.isArray(appSettings.phases) && appSettings.phases.length) ? appSettings.phases : DEFAULT_PHASES;
 }
 let ganttScale = 'week'; // 'day' | 'week' | 'month'
-let ganttMode = 'detail'; // 'detail' | 'proj'（案件のみ）
-let gExpand = new Set();  // 案件のみモードで展開中の案件ID（セッション内のみ）
+let ganttMode = 'detail'; // 'detail' | 'proj'（プロジェクトのみ）
+let gExpand = new Set();  // プロジェクトのみモードで展開中のプロジェクトID（セッション内のみ）
 const MAX_DEPTH = 4;
 
 const LS = { tasks:'tt_tasks', cfg:'tt_cfg', settings:'tt_settings', me:'tt_me', seen:'tt_seen', members:'tt_members', collapsed:'tt_collapsed', board:'tt_board', gscale:'tt_gscale', gmode:'tt_gmode' };
@@ -1291,7 +1291,7 @@ function collectDesc(id){
 }
 function boardProjects(){
   const tops = tasks.filter(t => !t.deleted && t.status !== 'done' && !hasActiveParent(t));
-  // 子を持つトップ＝案件。作りたての案件（子なし）も選択中ならボード扱い
+  // 子を持つトップ＝プロジェクト。作りたてのプロジェクト（子なし）も選択中ならボード扱い
   const projects = tops.filter(t =>
     tasks.some(c => !c.deleted && c.parentId === t.id) || t.id === currentBoard);
   projects.sort(taskComparator);
@@ -1327,7 +1327,7 @@ function renderBoardBar(){
     const hasOver = (p.due && p.due < tdy) || collectDesc(p.id).some(c => c.status !== 'done' && c.due && c.due < tdy);
     const isActive = currentBoard === p.id;
     b.innerHTML = `${hasOver ? '<span class="odot" title="期限切れのタスクあり"></span>' : ''}${esc(p.title)}<span class="cnt">${st.done}/${st.total}</span>` +
-      (isActive ? '<span class="bEdit" title="この案件を編集">✎</span>' : '');
+      (isActive ? '<span class="bEdit" title="このプロジェクトを編集">✎</span>' : '');
     b.title = p.title + (hasOver ? '（期限切れあり）' : '');
     b.addEventListener('click', e => {
       if(e.target.classList.contains('bEdit')){ openTaskModal(p.id); return; }
@@ -1342,7 +1342,7 @@ function renderBoardBar(){
   bar.appendChild(s);
   const add = document.createElement('button');
   add.className = 'bTab bAdd';
-  add.textContent = '＋ 新規案件';
+  add.textContent = '＋ 新規プロジェクト';
   add.addEventListener('click', newProject);
   bar.appendChild(add);
 }
@@ -1566,7 +1566,7 @@ function dropToStatus(id, colKey){
   markDirty(); render();
 }
 
-/* ================= 案件テンプレート（原紙第7版ベース・週数は目安） ================= */
+/* ================= プロジェクトテンプレート（原紙第7版ベース・週数は目安） ================= */
 const DEV_TEMPLATE = [
   { t:'DR-1（企画）', w:26, dur:1, gate:true, items:['企画書','DR-2までの計画表'] },
   { t:'試作設計', w:24, dur:2, items:['試作図面一式','試作製造指示書発行'] },
@@ -1671,7 +1671,7 @@ function createFromTemplate(){
   const title = $('f_tpl_title').value.trim();
   const pl = $('f_tpl_pl').value;
   const launch = $('f_tpl_launch').value;
-  if(!title){ alert('案件名を入力してください'); return; }
+  if(!title){ alert('プロジェクト名を入力してください'); return; }
   if(!launch){ alert('量産開始日を選択してください'); return; }
   const now = nowIso();
   const proj = {
@@ -1712,7 +1712,7 @@ function createFromTemplate(){
   showToast(`✅ 「${title}」に${count}件の工程・項目を作成しました`);
 }
 
-/* ================= 案件パイプライン ================= */
+/* ================= プロジェクトパイプライン ================= */
 function projectPhase(p){
   const ph = getPhases();
   return ph.includes(p.phase) ? p.phase : null;
@@ -1765,7 +1765,7 @@ function buildPipelineCard(p){
     localStorage.setItem(LS.board, p.id);
     setView(document.querySelector('#viewSeg .chip[data-view="board"]'));
   });
-  el.title = 'クリックでこの案件のボードを開く／ドラッグでフェーズ移動';
+  el.title = 'クリックでこのプロジェクトのボードを開く／ドラッグでフェーズ移動';
   return el;
 }
 function renderPipeline(){
@@ -1783,7 +1783,7 @@ function renderPipeline(){
     col.dataset.phase = c.key;
     const items = projects.filter(p => (projectPhase(p) || '') === c.key);
     col.innerHTML = `<div class="kColHead"><span class="dot" style="background:${c.unset ? '#98989f' : 'var(--accent)'}"></span>${esc(c.label)}<span class="kCount">${items.length}</span></div>` +
-      (c.unset ? '<div class="hint" style="padding:0 4px 8px">開発案件はドラッグでDRフェーズへ。開発以外の案件はここのままでOK</div>' : '');
+      (c.unset ? '<div class="hint" style="padding:0 4px 8px">開発プロジェクトはドラッグでDRフェーズへ。開発以外のプロジェクトはここのままでOK</div>' : '');
     col.addEventListener('dragover', e => { e.preventDefault(); col.classList.add('dragover'); });
     col.addEventListener('dragleave', () => col.classList.remove('dragover'));
     col.addEventListener('drop', e => {
@@ -1932,7 +1932,7 @@ function renderGantt(){
   }
 
   w.innerHTML = `
-    <div class="gHead" style="width:${totalW}px"><div class="gCorner">案件 / タスク</div>${daysHtml}</div>
+    <div class="gHead" style="width:${totalW}px"><div class="gCorner">プロジェクト / タスク</div>${daysHtml}</div>
     <div class="gBody" style="width:${totalW}px">${shades}${rowsHtml.join('')}</div>
     <div class="gLegend">
       <span><i style="background:var(--red)"></i>期限切れ</span>
@@ -1942,7 +1942,7 @@ function renderGantt(){
       <span><i style="background:transparent; box-shadow:inset 0 0 0 2px var(--doing)"></i>進行中</span>
       <span><i style="background:#c9c9ce"></i>完了</span>
       <span>◆ 〆切のみ（開始日未設定）</span>
-      <span>━ 案件の全体期間</span>
+      <span>━ プロジェクトの全体期間</span>
     </div>`;
   w.querySelectorAll('[data-id]').forEach(el =>
     el.addEventListener('click', e => {
@@ -2053,7 +2053,7 @@ function closePriPopover(){ $('priPop').style.display = 'none'; priPopCb = null;
 /* ================= モーダル ================= */
 let modalParent = '';
 function taskPathLabel(id){
-  if(!id) return 'なし（トップ階層＝案件）';
+  if(!id) return 'なし（トップ階層＝プロジェクト）';
   const parts = [];
   let cur = tasks.find(x => x.id === id && !x.deleted);
   let g = 0;
@@ -2061,10 +2061,10 @@ function taskPathLabel(id){
     parts.unshift(cur.title);
     cur = cur.parentId ? tasks.find(x => x.id === cur.parentId && !x.deleted) : null;
   }
-  return parts.join(' › ') || 'なし（トップ階層＝案件）';
+  return parts.join(' › ') || 'なし（トップ階層＝プロジェクト）';
 }
 function buildParentList(excludeTask, selectedId){
-  const rows = [{ id: '', label: 'なし（トップ階層＝案件）', depth: 0 }];
+  const rows = [{ id: '', label: 'なし（トップ階層＝プロジェクト）', depth: 0 }];
   for(const r of treeRows(true)){
     const p = r.t;
     if(excludeTask && (p.id === excludeTask.id || isDescendantOf(p, excludeTask.id))) continue;
@@ -2101,7 +2101,7 @@ function openParentPop(){
 function closeParentPop(){ $('parentPop').style.display = 'none'; }
 function buildParentOptions(excludeTask, selectedId){
   const rows = treeRows(true);
-  let html = '<option value="">なし（トップ階層＝案件）</option>';
+  let html = '<option value="">なし（トップ階層＝プロジェクト）</option>';
   for(const r of rows){
     const p = r.t;
     if(excludeTask && (p.id === excludeTask.id || isDescendantOf(p, excludeTask.id))) continue;
@@ -2119,7 +2119,7 @@ function openTaskModal(id, parentPreset){
   editingId = id || null;
   const t = id ? tasks.find(x => x.id === id) : null;
   $('taskModalTitle').textContent = t ? 'タスクを編集'
-    : (creatingProject ? '新しい案件を追加' : (parentPreset ? '子タスクを追加' : 'タスクを追加'));
+    : (creatingProject ? '新しいプロジェクトを追加' : (parentPreset ? '子タスクを追加' : 'タスクを追加'));
   $('btnDelete').style.display = t ? 'inline-block' : 'none';
   $('f_title').value = t ? t.title : '';
   $('f_start').value = t?.startDate || '';
@@ -2158,7 +2158,7 @@ function saveTask(){
     Object.assign(t, data);
   } else {
     tasks.push(Object.assign({ id: uid(), status: $('f_status').value, doneDate: null, createdAt: nowIso(), deleted: false }, data));
-    // 「＋新規案件」から作った場合はそのボードへ切替
+    // 「＋新規プロジェクト」から作った場合はそのボードへ切替
     if(creatingProject && !data.parentId){
       currentBoard = tasks[tasks.length - 1].id;
       localStorage.setItem(LS.board, currentBoard);

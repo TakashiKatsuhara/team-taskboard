@@ -13,7 +13,7 @@ function seedDemo(){
   }, o);
 
   const list = [];
-  // ===== 案件1: 新型機能門柱 =====
+  // ===== プロジェクト1: 新型機能門柱 =====
   const p1 = mk({ title: '新型機能門柱', memo: '2026年秋 発売予定', phase: '試作〜DR-2' });
   list.push(p1);
   const c11 = mk({ title: 'カタログ入稿', parentId: p1.id, startDate: D(-7), due: D(14), status: 'doing', assignee: '杉信', priority: 1 });
@@ -35,7 +35,7 @@ function seedDemo(){
     mk({ title: '製造指示書', parentId: c12.id, assignee: '大森' })
   );
 
-  // ===== 案件2: 樹脂グレーチング開発 =====
+  // ===== プロジェクト2: 樹脂グレーチング開発 =====
   const p2 = mk({ title: '樹脂グレーチング開発', assignee: '椿', phase: '企画〜DR-1' });
   list.push(p2);
   const c21 = mk({ title: '工場見学の段取り', parentId: p2.id, due: NB, status: 'doing', assignee: '大森' });
@@ -47,7 +47,7 @@ function seedDemo(){
     mk({ title: 'カタログ校正', parentId: c22.id, assignee: '椿' })
   );
 
-  // ===== 案件3: オンリーワン価格改定 =====
+  // ===== プロジェクト3: オンリーワン価格改定 =====
   const p3 = mk({ title: 'オンリーワン価格改定', assignee: '中河' });
   list.push(p3);
   list.push(
@@ -82,6 +82,6 @@ function resetDemo(){
 // 初回アクセス時に自動シード
 if(tasks.filter(t => !t.deleted).length === 0){
   seedDemo();
-  currentBoard = tasks[0].id; // 最初の案件ボードを開く
+  currentBoard = tasks[0].id; // 最初のプロジェクトボードを開く
   render();
 }
