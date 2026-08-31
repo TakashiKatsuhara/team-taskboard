@@ -292,6 +292,20 @@
   .gLegend{display:flex; gap:14px; flex-wrap:wrap; padding:8px 12px; font-size:11px; color:var(--sub); border-top:0.5px solid var(--line); position:sticky; left:0; width:fit-content;}
   .gLegend i{display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:4px; vertical-align:-1px;}
 
+  /* ===== 案件パイプライン ===== */
+  #pipeline{display:none; gap:12px; align-items:flex-start; overflow-x:auto; padding-bottom:30px;}
+  .pCol{width:300px;}
+  .pCard{cursor:pointer;}
+  .pCard .kTitle{font-size:14px;}
+  .pBar{height:5px; border-radius:99px; background:var(--seg-bg); margin-top:8px; overflow:hidden;}
+  .pFill{height:100%; border-radius:99px; background:linear-gradient(90deg, var(--accent), var(--next-pill-text)); transition:width .4s;}
+  .lateBadge{font-size:10.5px; font-weight:700; color:#fff; background:var(--red); border-radius:999px; padding:2px 8px;}
+  .pEmpty{font-size:12px; color:var(--sub); padding:8px 4px;}
+  @media (max-width:719px){
+    #pipeline{flex-direction:column; overflow-x:visible;}
+    .pCol{width:100%;}
+  }
+
   /* ===== ガント ===== */
   #ganttWrap{display:none; overflow-x:auto; background:var(--card); border-radius:16px; box-shadow:var(--shadow);}
   .gHead{display:flex; border-bottom:0.5px solid var(--line);}
@@ -475,6 +489,7 @@
 <div class="toolbar">
   <div class="seg" id="viewSeg">
     <button class="chip active" data-view="mine" onclick="setView(this)">自分のタスク</button>
+    <button class="chip" data-view="pipeline" onclick="setView(this)">🧭 案件</button>
     <button class="chip" data-view="board" onclick="setView(this)">ボード</button>
     <button class="chip" data-view="gantt" onclick="setView(this)">📊 ガント</button>
     <button class="chip" data-view="done" onclick="setView(this)">完了済み</button>
@@ -505,6 +520,7 @@
     <tbody id="taskBody"></tbody>
   </table>
   <div id="kanban"></div>
+  <div id="pipeline"></div>
   <div id="ganttWrap"></div>
   <div id="cards"></div>
   <div id="emptyMsg" class="empty" style="display:none"><div class="big">🎉</div>タスクはありません</div>
@@ -564,6 +580,10 @@
       <select id="f_parent"></select>
     </div>
     <div class="formRow">
+      <label>開発フェーズ（案件＝トップ階層で使用。🧭案件ビューの列に対応）</label>
+      <select id="f_phase"></select>
+    </div>
+    <div class="formRow">
       <label>メモ</label>
       <textarea id="f_memo"></textarea>
     </div>
@@ -587,6 +607,12 @@
       </div>
       <div id="memberRows"></div>
       <button class="btnAddMem" onclick="addMemberRow()">＋ メンバーを追加</button>
+    </div>
+
+    <div class="settingsSection">
+      <h3>🧭 開発フェーズ（案件ビューの列）</h3>
+      <div class="hint" style="margin-bottom:6px">カンマ区切りで編集できます（チーム全員に同期）。</div>
+      <div class="formRow"><input type="text" id="s_phases"></div>
     </div>
 
     <div class="settingsSection">
@@ -758,6 +784,10 @@ let collapsed = new Set(); // （親タスク選択リストの互換用）
 let currentBoard = '__single'; // 表示中のボード（案件ID or '__single'）
 let creatingProject = false;
 let ganttScrollPending = false;
+const DEFAULT_PHASES = ['企画〜DR-1','試作〜DR-2','量産試作〜DR-3','量産準備〜DR-4','量産開始'];
+function getPhases(){
+  return (Array.isArray(appSettings.phases) && appSettings.phases.length) ? appSettings.phases : DEFAULT_PHASES;
+}
 let ganttScale = 'week'; // 'day' | 'week' | 'month' 
 const MAX_DEPTH = 4;
 
@@ -1013,6 +1043,7 @@ function render(preserveOrder){
   $('meSelect').innerHTML = (me ? '' : '<option value="">自分を選択</option>') + memberOptions(me);
   const isBoard = currentView === 'board';
   const isGantt = currentView === 'gantt';
+  const isPipe = currentView === 'pipeline';
   // メンバーフィルタ（ボード・ガントビュー）
   const ms = $('memberSeg');
   if(isBoard || isGantt){
@@ -1029,11 +1060,19 @@ function render(preserveOrder){
   cards.innerHTML = '';
   $('boardBar').style.display = isBoard ? 'flex' : 'none';
   $('kanban').style.display = isBoard ? 'flex' : 'none';
+  $('pipeline').style.display = isPipe ? 'flex' : 'none';
   $('ganttWrap').style.display = isGantt ? 'block' : 'none';
   $('ganttSeg').style.display = isGantt ? 'inline-flex' : 'none';
   document.querySelectorAll('#ganttSeg .chip').forEach(c => c.classList.toggle('active', c.dataset.scale === ganttScale));
-  $('taskTable').style.display = (isBoard || isGantt) ? 'none' : '';
-  cards.style.display = (isBoard || isGantt) ? 'none' : '';
+  $('taskTable').style.display = (isBoard || isGantt || isPipe) ? 'none' : '';
+  cards.style.display = (isBoard || isGantt || isPipe) ? 'none' : '';
+
+  if(isPipe){
+    $('emptyMsg').style.display = 'none';
+    renderPipeline();
+    lastEditedId = null;
+    return;
+  }
 
   if(isBoard){
     $('emptyMsg').style.display = 'none';
@@ -1422,6 +1461,92 @@ function dropToStatus(id, colKey){
   markDirty(); render();
 }
 
+/* ================= 案件パイプライン ================= */
+function projectPhase(p){
+  const ph = getPhases();
+  return ph.includes(p.phase) ? p.phase : ph[0];
+}
+function setPhase(id, phase){
+  const t = tasks.find(x => x.id === id);
+  if(!t) return;
+  t.phase = phase;
+  t.updatedAt = nowIso();
+  markDirty(); render();
+}
+function nextDueOf(p){
+  let best = null;
+  for(const t of [p, ...collectDesc(p.id)]){
+    if(t.status === 'done' || !t.due) continue;
+    if(!best || t.due < best) best = t.due;
+  }
+  return best;
+}
+function overdueCountOf(p){
+  const today = todayStr();
+  return [p, ...collectDesc(p.id)].filter(t => t.status !== 'done' && t.due && t.due < today).length;
+}
+function buildPipelineCard(p){
+  const st = descendantStats(p.id);
+  const pct = st.total ? Math.round(st.done / st.total * 100) : 0;
+  const nd = nextDueOf(p);
+  const today = todayStr();
+  const ndCls = nd ? (nd < today ? 'overdue' : nd === today ? 'today' : nd === nextBusinessDay(today) ? 'next' : '') : '';
+  const late = overdueCountOf(p);
+  const el = document.createElement('div');
+  el.className = `kCard pCard ${ndCls}`;
+  el.draggable = true;
+  el.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', p.id); el.classList.add('dragging'); });
+  el.addEventListener('dragend', () => el.classList.remove('dragging'));
+  el.innerHTML = `
+    <div class="kTitle">${esc(p.title)}</div>
+    <div class="pBar"><div class="pFill" style="width:${pct}%"></div></div>
+    <div class="kMeta">
+      <span class="prog ${st.total && st.done === st.total ? 'doneAll' : ''}">${st.done}/${st.total}（${pct}%）</span>
+      ${nd ? `<span class="kDue ${ndCls}">次〆 ${esc(fmtMD(nd))}</span>` : ''}
+      ${late ? `<span class="lateBadge">遅延${late}</span>` : ''}
+      ${mbHtml(p.assignee)}
+      <button class="editBtn pEdit" title="編集" style="margin-left:auto">✎</button>
+    </div>`;
+  el.querySelector('.pEdit').addEventListener('click', e => { e.stopPropagation(); openTaskModal(p.id); });
+  el.addEventListener('click', e => {
+    if(e.target.closest('button')) return;
+    currentBoard = p.id;
+    localStorage.setItem(LS.board, p.id);
+    setView(document.querySelector('#viewSeg .chip[data-view="board"]'));
+  });
+  el.title = 'クリックでこの案件のボードを開く／ドラッグでフェーズ移動';
+  return el;
+}
+function renderPipeline(){
+  const wrap = $('pipeline');
+  wrap.innerHTML = '';
+  const { projects } = boardProjects();
+  const phases = getPhases();
+  for(const ph of phases){
+    const col = document.createElement('div');
+    col.className = 'kCol pCol';
+    col.dataset.phase = ph;
+    const items = projects.filter(p => projectPhase(p) === ph);
+    col.innerHTML = `<div class="kColHead"><span class="dot" style="background:var(--accent)"></span>${esc(ph)}<span class="kCount">${items.length}</span></div>`;
+    col.addEventListener('dragover', e => { e.preventDefault(); col.classList.add('dragover'); });
+    col.addEventListener('dragleave', () => col.classList.remove('dragover'));
+    col.addEventListener('drop', e => {
+      e.preventDefault();
+      col.classList.remove('dragover');
+      const id = e.dataTransfer.getData('text/plain');
+      if(id) setPhase(id, ph);
+    });
+    if(!items.length){
+      const d = document.createElement('div');
+      d.className = 'pEmpty';
+      d.textContent = 'ー';
+      col.appendChild(d);
+    }
+    for(const p of items) col.appendChild(buildPipelineCard(p));
+    wrap.appendChild(col);
+  }
+}
+
 /* ================= ガントチャート ================= */
 function renderGantt(){
   const w = $('ganttWrap');
@@ -1682,6 +1807,8 @@ function openTaskModal(id, parentPreset){
   $('f_assignee').innerHTML = memberOptions(t?.assignee || me || members.list[0]);
   $('f_requester').innerHTML = memberOptions(t?.requester || me || members.list[0]);
   $('f_parent').innerHTML = buildParentOptions(t, t?.parentId || parentPreset || '');
+  $('f_phase').innerHTML = '<option value="">ー（未設定＝最初の列）</option>' +
+    getPhases().map(p => `<option value="${esc(p)}" ${t?.phase === p ? 'selected' : ''}>${esc(p)}</option>`).join('');
   $('f_memo').value = t?.memo || '';
   $('taskOverlay').classList.add('show');
   if(!t) $('f_title').focus();
@@ -1698,6 +1825,7 @@ function saveTask(){
     assignee: $('f_assignee').value,
     requester: $('f_requester').value,
     parentId: $('f_parent').value || null,
+    phase: $('f_phase').value || null,
     memo: $('f_memo').value,
     updatedAt: nowIso()
   };
@@ -1883,7 +2011,7 @@ function renderHolidayCal(){
 function toggleCompanyHoliday(d){
   const set = new Set(appSettings.customHolidays || []);
   set.has(d) ? set.delete(d) : set.add(d);
-  appSettings = { customHolidays: [...set].sort(), updatedAt: nowIso() };
+  appSettings = { ...appSettings, customHolidays: [...set].sort(), updatedAt: nowIso() };
   rebuildHolidaySet();
   renderHolidayChips(); renderHolidayCal(); markDirty(); render(true);
 }
@@ -1939,13 +2067,13 @@ function addHoliday(){
   const set = new Set(appSettings.customHolidays || []);
   let d = from, guard = 0;
   while(d <= to && guard++ < 366){ set.add(d); d = addDays(d, 1); }
-  appSettings = { customHolidays: [...set].sort(), updatedAt: nowIso() };
+  appSettings = { ...appSettings, customHolidays: [...set].sort(), updatedAt: nowIso() };
   rebuildHolidaySet();
   $('s_holFrom').value = ''; $('s_holTo').value = '';
   renderHolidayChips(); renderHolidayCal(); markDirty(); render(true);
 }
 function removeHoliday(d){
-  appSettings = { customHolidays: (appSettings.customHolidays || []).filter(x => x !== d), updatedAt: nowIso() };
+  appSettings = { ...appSettings, customHolidays: (appSettings.customHolidays || []).filter(x => x !== d), updatedAt: nowIso() };
   rebuildHolidaySet();
   renderHolidayChips(); renderHolidayCal(); markDirty(); render(true);
 }
@@ -1960,6 +2088,7 @@ function renderHolidayChips(){
 }
 function openSettings(){
   const cfg = getCfg();
+  $('s_phases').value = getPhases().join(', ');
   buildMemberRows();
   renderHolidayChips();
   renderHolidayCal();
@@ -1999,6 +2128,11 @@ async function saveSettings(){
     if(renames[quickDraft.assignee]) quickDraft.assignee = renames[quickDraft.assignee];
   }
   if(me && !members.list.includes(me)){ me = ''; localStorage.removeItem(LS.me); }
+  // 開発フェーズ
+  const phasesIn = $('s_phases').value.split(/[,、]/).map(x => x.trim()).filter(Boolean);
+  if(phasesIn.length && JSON.stringify(phasesIn) !== JSON.stringify(getPhases())){
+    appSettings = { ...appSettings, phases: phasesIn, updatedAt: nowIso() };
+  }
   const cfg = {
     owner: $('s_owner').value.trim(),
     repo: $('s_repo').value.trim(),

@@ -14,7 +14,7 @@ function seedDemo(){
 
   const list = [];
   // ===== 案件1: 新型機能門柱 =====
-  const p1 = mk({ title: '新型機能門柱', memo: '2026年秋 発売予定' });
+  const p1 = mk({ title: '新型機能門柱', memo: '2026年秋 発売予定', phase: '試作〜DR-2' });
   list.push(p1);
   const c11 = mk({ title: 'カタログ入稿', parentId: p1.id, startDate: D(-7), due: D(14), status: 'doing', assignee: '杉信', priority: 1 });
   const c12 = mk({ title: 'DR・図面一式', parentId: p1.id, startDate: D(-3), due: D(7), assignee: '中河', priority: 0, memo: '本体・梱包・製造指示書' });
@@ -36,7 +36,7 @@ function seedDemo(){
   );
 
   // ===== 案件2: 樹脂グレーチング開発 =====
-  const p2 = mk({ title: '樹脂グレーチング開発', assignee: '椿' });
+  const p2 = mk({ title: '樹脂グレーチング開発', assignee: '椿', phase: '企画〜DR-1' });
   list.push(p2);
   const c21 = mk({ title: '工場見学の段取り', parentId: p2.id, due: NB, status: 'doing', assignee: '大森' });
   const c22 = mk({ title: 'カタログ掲載準備', parentId: p2.id, startDate: D(7), due: D(21), assignee: '椿' });
@@ -48,7 +48,7 @@ function seedDemo(){
   );
 
   // ===== 案件3: オンリーワン価格改定 =====
-  const p3 = mk({ title: 'オンリーワン価格改定', assignee: '中河' });
+  const p3 = mk({ title: 'オンリーワン価格改定', assignee: '中河', phase: '量産準備〜DR-4' });
   list.push(p3);
   list.push(
     mk({ title: '価格改定書ドラフト', parentId: p3.id, startDate: T, due: D(5), status: 'doing', assignee: '中河', priority: 2 }),
