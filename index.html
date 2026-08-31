@@ -374,6 +374,9 @@
   .gLabel .tt{overflow:hidden; text-overflow:ellipsis;}
   .gLabel .mb{flex-shrink:0;}
   .gRow.gProj .gLabel{font-weight:800; background:#eef0f4;}
+  .gTwist{width:18px; text-align:center; color:var(--sub); flex-shrink:0; font-size:10px;
+    border-radius:5px; padding:3px 0; cursor:pointer;}
+  .gTwist:hover{background:var(--seg-bg); color:var(--text);}
   @media (prefers-color-scheme: dark){ .gRow.gProj .gLabel{background:#26292e;} }
   .gBar{position:absolute; top:8px; height:18px; border-radius:6px; background:var(--accent); opacity:.9; cursor:pointer; z-index:1;}
   .gBar:hover{opacity:1;}
@@ -543,6 +546,10 @@
     <button class="chip" data-scale="day" onclick="setGanttScale(this)">日</button>
     <button class="chip" data-scale="week" onclick="setGanttScale(this)">週</button>
     <button class="chip" data-scale="month" onclick="setGanttScale(this)">月</button>
+  </div>
+  <div class="seg" id="ganttModeSeg" style="display:none">
+    <button class="chip" data-gmode="detail" onclick="setGanttMode(this)">詳細</button>
+    <button class="chip" data-gmode="proj" onclick="setGanttMode(this)">案件のみ</button>
   </div>
   <input id="searchBox" type="text" placeholder="🔍 検索" oninput="render(true)">
 </div>
@@ -869,10 +876,12 @@ const DEFAULT_PHASES = ['企画〜DR-1','試作〜DR-2','量産試作〜DR-3','�
 function getPhases(){
   return (Array.isArray(appSettings.phases) && appSettings.phases.length) ? appSettings.phases : DEFAULT_PHASES;
 }
-let ganttScale = 'week'; // 'day' | 'week' | 'month' 
+let ganttScale = 'week'; // 'day' | 'week' | 'month'
+let ganttMode = 'detail'; // 'detail' | 'proj'（案件のみ）
+let gExpand = new Set();  // 案件のみモードで展開中の案件ID（セッション内のみ）
 const MAX_DEPTH = 4;
 
-const LS = { tasks:'tt_tasks', cfg:'tt_cfg', settings:'tt_settings', me:'tt_me', seen:'tt_seen', members:'tt_members', collapsed:'tt_collapsed', board:'tt_board', gscale:'tt_gscale' };
+const LS = { tasks:'tt_tasks', cfg:'tt_cfg', settings:'tt_settings', me:'tt_me', seen:'tt_seen', members:'tt_members', collapsed:'tt_collapsed', board:'tt_board', gscale:'tt_gscale', gmode:'tt_gmode' };
 
 /* ================= 階層ヘルパー ================= */
 function taskById(id){ return tasks.find(x => x.id === id && !x.deleted); }
@@ -980,6 +989,7 @@ function loadLocal(){
   try{ collapsed = new Set(JSON.parse(localStorage.getItem(LS.collapsed) || '[]')); }catch(e){}
   currentBoard = localStorage.getItem(LS.board) || '__single';
   ganttScale = localStorage.getItem(LS.gscale) || 'week';
+  ganttMode = localStorage.getItem(LS.gmode) || 'detail';
 }
 function saveLocal(){
   localStorage.setItem(LS.tasks, JSON.stringify(tasks));
@@ -1044,6 +1054,12 @@ function setView(el){
 function setGanttScale(el){
   ganttScale = el.dataset.scale;
   localStorage.setItem(LS.gscale, ganttScale);
+  ganttScrollPending = true;
+  render();
+}
+function setGanttMode(el){
+  ganttMode = el.dataset.gmode;
+  localStorage.setItem(LS.gmode, ganttMode);
   ganttScrollPending = true;
   render();
 }
@@ -1146,6 +1162,8 @@ function render(preserveOrder){
   $('ganttWrap').style.display = isGantt ? 'block' : 'none';
   $('ganttSeg').style.display = isGantt ? 'inline-flex' : 'none';
   document.querySelectorAll('#ganttSeg .chip').forEach(c => c.classList.toggle('active', c.dataset.scale === ganttScale));
+  $('ganttModeSeg').style.display = isGantt ? 'inline-flex' : 'none';
+  document.querySelectorAll('#ganttModeSeg .chip').forEach(c => c.classList.toggle('active', c.dataset.gmode === ganttMode));
   $('taskTable').style.display = (isBoard || isGantt || isPipe) ? 'none' : '';
   cards.style.display = (isBoard || isGantt || isPipe) ? 'none' : '';
 
@@ -1880,11 +1898,15 @@ function renderGantt(){
   };
   const filterOk = t => !memberFilter || t.assignee === memberFilter;
 
+  const projOnly = ganttMode === 'proj';
   const rowsHtml = [];
-  const addRow = (t, isProj) => {
+  const addRow = (t, isProj, twistState) => {
     const right = isProj ? projSpan(t) : barFor(t);
+    const twist = isProj && twistState
+      ? `<span class="gTwist" data-pid="${esc(t.id)}" title="工程を展開/折りたたみ">${twistState === 'open' ? '▾' : '▸'}</span>`
+      : '';
     const label = isProj
-      ? `<span class="tt">${esc(t.title)}</span><span class="prog">${descendantStats(t.id).done}/${descendantStats(t.id).total}</span>`
+      ? `${twist}<span class="tt">${esc(t.title)}</span><span class="prog">${descendantStats(t.id).done}/${descendantStats(t.id).total}</span>`
       : `<span class="tt">${esc(t.title)}</span>${mbHtml(t.assignee)}`;
     rowsHtml.push(`<div class="gRow${isProj ? ' gProj' : ''}" style="height:${rowH}px; width:${totalW}px">
       <div class="gLabel" data-id="${esc(t.id)}" title="${esc(t.title)}">${label}</div>${right}</div>`);
@@ -1894,14 +1916,19 @@ function renderGantt(){
   for(const p of projects){
     const kids = tasks.filter(c => !c.deleted && c.parentId === p.id && filterOk(c));
     if(memberFilter && !kids.length && !filterOk(p)) continue;
-    addRow(p, true);
-    kids.sort(taskComparator);
-    for(const k of kids) addRow(k, false);
+    const expanded = !projOnly || gExpand.has(p.id);
+    addRow(p, true, projOnly ? (expanded ? 'open' : 'closed') : null);
+    if(expanded){
+      kids.sort(taskComparator);
+      for(const k of kids) addRow(k, false);
+    }
   }
-  const sg = singles.filter(filterOk);
-  if(sg.length){
-    rowsHtml.push(`<div class="gRow gProj" style="height:${rowH}px; width:${totalW}px"><div class="gLabel"><span class="tt">📌 個別タスク</span></div></div>`);
-    for(const s of sg) addRow(s, false);
+  if(!projOnly){
+    const sg = singles.filter(filterOk);
+    if(sg.length){
+      rowsHtml.push(`<div class="gRow gProj" style="height:${rowH}px; width:${totalW}px"><div class="gLabel"><span class="tt">📌 個別タスク</span></div></div>`);
+      for(const s of sg) addRow(s, false);
+    }
   }
 
   w.innerHTML = `
@@ -1918,7 +1945,16 @@ function renderGantt(){
       <span>━ 案件の全体期間</span>
     </div>`;
   w.querySelectorAll('[data-id]').forEach(el =>
-    el.addEventListener('click', () => openTaskModal(el.dataset.id)));
+    el.addEventListener('click', e => {
+      if(e.target.closest('.gTwist')) return;
+      openTaskModal(el.dataset.id);
+    }));
+  w.querySelectorAll('.gTwist').forEach(tw => tw.addEventListener('click', e => {
+    e.stopPropagation();
+    const id = tw.dataset.pid;
+    gExpand.has(id) ? gExpand.delete(id) : gExpand.add(id);
+    renderGantt();
+  }));
   if(ganttScrollPending){
     ganttScrollPending = false;
     const back = ganttScale === 'day' ? 4 : (ganttScale === 'week' ? 14 : 45);
