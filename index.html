@@ -328,6 +328,21 @@
   .tplRow.gate{font-weight:700;}
   .tplRow.gate .d{color:var(--blue-pill);}
   .tplRow .c{color:var(--sub); font-size:11px; margin-left:auto; flex-shrink:0;}
+  .tplPrev input[type=text]{flex:1; border:none; background:transparent; font:inherit; color:inherit;
+    padding:2px 5px; border-radius:5px; min-width:0;}
+  .tplPrev input[type=text]:focus{outline:none; background:var(--card); box-shadow:0 0 0 2px var(--accent);}
+  .tplPrev input[type=date]{border:none; background:transparent; font-family:inherit; font-size:11.5px;
+    color:var(--sub); width:118px; flex-shrink:0; padding:2px; border-radius:5px;}
+  .tplPrev input[type=date]:focus{outline:none; background:var(--card); box-shadow:0 0 0 2px var(--accent);}
+  .tplRow.gate input[type=text]{font-weight:700;}
+  .tplTog{border:none; background:var(--seg-bg); color:var(--sub); border-radius:999px; font-size:10.5px;
+    padding:2.5px 9px; cursor:pointer; flex-shrink:0; font-family:inherit; white-space:nowrap;}
+  .tplTog:hover{color:var(--text);}
+  .tplDel{border:none; background:transparent; color:#c0c0c6; cursor:pointer; border-radius:5px; padding:0 5px;
+    flex-shrink:0; font-size:12px;}
+  .tplDel:hover{color:var(--red-text);}
+  .tplItems{padding:2px 0 6px 24px; border-left:2px solid var(--line); margin-left:8px;}
+  .tplItem{display:flex; gap:6px; align-items:center; padding:1px 0;}
   .pCol.pUnset{background:transparent; border:1.5px dashed var(--line);}
   .pCol.pUnset .pCard{opacity:.85;}
   @media (max-width:719px){
@@ -550,7 +565,7 @@
   </table>
   <div id="kanban"></div>
   <div id="pipeTools">
-    <button class="btnAddHol" onclick="openTplModal()">＋ テンプレートから案件作成</button>
+    <button class="btnAddHol" onclick="openTplModal()">＋ DRテンプレートから案件作成</button>
     <span class="hint" style="margin-left:10px">開発スケジュール原紙の工程一式を量産開始日から逆算して自動作成します</span>
   </div>
   <div id="pipeline"></div>
@@ -633,7 +648,7 @@
 <!-- テンプレート作成モーダル -->
 <div class="overlay" id="tplOverlay">
   <div class="modal">
-    <h2>テンプレートから案件を作成</h2>
+    <h2>DRテンプレートから案件を作成</h2>
     <div class="formRow">
       <label>案件名（商品名） *</label>
       <input type="text" id="f_tpl_title" placeholder="例: 新型宅配ボックス">
@@ -649,7 +664,9 @@
       </div>
     </div>
     <div class="hint" style="margin-bottom:8px">
-      開発スケジュール原紙（第7版）の工程を逆算配置します。<b>日付は目安のリードタイム</b>です。作成後に個別調整してください（休日は前営業日へ自動調整）。
+      開発スケジュール原紙（第7版）の工程を逆算配置します（<b>日付は目安・休日は前営業日へ自動調整</b>）。
+      下のリストは<b>その場で編集できます</b>：日付・タイトルを直接修正、「▸ n項目」で中の項目を開いて編集、✕で不要な工程・項目を除外。
+      手で直した日付は、量産開始日を変えても再計算されず保持されます。
     </div>
     <div id="tplPreview" class="tplPrev"></div>
     <div class="modalBtns">
@@ -1555,26 +1572,82 @@ function adjPrev(sd){ return isNonWorkday(sd) ? prevBusinessDay(sd) : sd; }
 function tplDates(launch){
   return DEV_TEMPLATE.map(x => ({ ...x, due: x.w === 0 ? launch : adjPrev(addDays(launch, -x.w * 7)) }));
 }
+let tplDraft = [];
+let tplOpen = new Set();
+function makeTplDraft(){
+  const launch = $('f_tpl_launch').value;
+  tplDraft = DEV_TEMPLATE.map(x => ({
+    t: x.t, w: x.w, dur: x.dur, gate: !!x.gate,
+    due: launch ? (x.w === 0 ? launch : adjPrev(addDays(launch, -x.w * 7))) : '',
+    items: x.items.map(it => ({ t: it, due: '' }))
+  }));
+}
+function recalcTplDates(){
+  const launch = $('f_tpl_launch').value;
+  if(!launch) return;
+  for(const r of tplDraft){
+    if(r.w != null) r.due = r.w === 0 ? launch : adjPrev(addDays(launch, -r.w * 7));
+  }
+}
 function openTplModal(){
   if(!me){ alert('先に右上で「自分」を選択してください'); return; }
   $('f_tpl_title').value = '';
   $('f_tpl_pl').innerHTML = memberOptions(me);
   $('f_tpl_launch').value = adjPrev(addDays(todayStr(), 182));
+  makeTplDraft();
+  tplOpen = new Set();
   renderTplPreview();
   $('tplOverlay').classList.add('show');
   $('f_tpl_title').focus();
 }
 function closeTplModal(){ $('tplOverlay').classList.remove('show'); }
 function renderTplPreview(){
-  const launch = $('f_tpl_launch').value;
   const box = $('tplPreview');
-  if(!launch){
+  if(!$('f_tpl_launch').value && !tplDraft.length){
     box.innerHTML = '<span class="hint">量産開始日を選ぶと工程日付のプレビューを表示します</span>';
     return;
   }
-  box.innerHTML = tplDates(launch).map(x =>
-    `<div class="tplRow ${x.gate ? 'gate' : ''}"><span class="d">${esc(fmtMD(x.due))}</span><span class="n">${esc(x.t)}</span>${x.items.length ? `<span class="c">＋${x.items.length}項目</span>` : ''}</div>`
-  ).join('');
+  box.innerHTML = tplDraft.map((r, i) => {
+    const itemsHtml = tplOpen.has(i) && r.items.length
+      ? `<div class="tplItems" data-i="${i}">` + r.items.map((it, j) =>
+          `<div class="tplItem"><input type="date" class="tplIDate" data-i="${i}" data-j="${j}" value="${esc(it.due)}"><input type="text" class="tplITitle" data-i="${i}" data-j="${j}" value="${esc(it.t)}"><button class="tplDel tplIDel" data-i="${i}" data-j="${j}" title="項目を除外">✕</button></div>`
+        ).join('') + '</div>'
+      : '';
+    return `<div class="tplRow ${r.gate ? 'gate' : ''}">
+        <input type="date" class="tplDate" data-i="${i}" value="${esc(r.due)}">
+        <input type="text" class="tplTitle" data-i="${i}" value="${esc(r.t)}">
+        ${r.items.length ? `<button class="tplTog" data-i="${i}">${tplOpen.has(i) ? '▾' : '▸'} ${r.items.length}項目</button>` : ''}
+        <button class="tplDel tplRDel" data-i="${i}" title="この工程を除外">✕</button>
+      </div>${itemsHtml}`;
+  }).join('');
+  box.querySelectorAll('.tplDate').forEach(inp => inp.addEventListener('change', e => {
+    const r = tplDraft[+inp.dataset.i];
+    r.due = e.target.value;
+    r.w = null; // 手動修正した日付は量産開始日変更でも保持
+  }));
+  box.querySelectorAll('.tplTitle').forEach(inp => inp.addEventListener('input', e => {
+    tplDraft[+inp.dataset.i].t = e.target.value;
+  }));
+  box.querySelectorAll('.tplIDate').forEach(inp => inp.addEventListener('change', e => {
+    tplDraft[+inp.dataset.i].items[+inp.dataset.j].due = e.target.value;
+  }));
+  box.querySelectorAll('.tplITitle').forEach(inp => inp.addEventListener('input', e => {
+    tplDraft[+inp.dataset.i].items[+inp.dataset.j].t = e.target.value;
+  }));
+  box.querySelectorAll('.tplTog').forEach(b => b.addEventListener('click', () => {
+    const i = +b.dataset.i;
+    tplOpen.has(i) ? tplOpen.delete(i) : tplOpen.add(i);
+    renderTplPreview();
+  }));
+  box.querySelectorAll('.tplRDel').forEach(b => b.addEventListener('click', () => {
+    tplDraft.splice(+b.dataset.i, 1);
+    tplOpen = new Set();
+    renderTplPreview();
+  }));
+  box.querySelectorAll('.tplIDel').forEach(b => b.addEventListener('click', () => {
+    tplDraft[+b.dataset.i].items.splice(+b.dataset.j, 1);
+    renderTplPreview();
+  }));
 }
 function createFromTemplate(){
   const title = $('f_tpl_title').value.trim();
@@ -1591,19 +1664,21 @@ function createFromTemplate(){
   };
   tasks.push(proj);
   let count = 0;
-  for(const x of tplDates(launch)){
+  for(const x of tplDraft){
+    if(!(x.t || '').trim()) continue;
     const card = {
-      id: uid() + Math.random().toString(36).slice(2, 5), title: x.t,
-      due: x.due, startDate: x.dur ? addDays(x.due, -x.dur * 7) : null, priority: '',
+      id: uid() + Math.random().toString(36).slice(2, 5), title: x.t.trim(),
+      due: x.due || null, startDate: (x.dur && x.due) ? addDays(x.due, -x.dur * 7) : null, priority: '',
       status: 'todo', doneDate: null, assignee: pl, requester: me,
       parentId: proj.id, phase: null, memo: '',
       createdAt: now, updatedAt: now, deleted: false
     };
     tasks.push(card); count++;
     for(const it of x.items){
+      if(!(it.t || '').trim()) continue;
       tasks.push({
-        id: uid() + Math.random().toString(36).slice(2, 5), title: it,
-        due: null, startDate: null, priority: '',
+        id: uid() + Math.random().toString(36).slice(2, 5), title: it.t.trim(),
+        due: it.due || null, startDate: null, priority: '',
         status: 'todo', doneDate: null, assignee: pl, requester: me,
         parentId: card.id, phase: null, memo: '',
         createdAt: now, updatedAt: now, deleted: false
@@ -2419,7 +2494,7 @@ document.addEventListener('keydown', e => {
   closePriPopover();
   editingId = null; creatingProject = false;
 });
-$('f_tpl_launch').addEventListener('change', renderTplPreview);
+$('f_tpl_launch').addEventListener('change', () => { recalcTplDates(); renderTplPreview(); });
 $('f_parentBtn').addEventListener('click', e => {
   e.stopPropagation();
   $('parentPop').style.display === 'block' ? closeParentPop() : openParentPop();
