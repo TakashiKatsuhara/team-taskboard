@@ -303,6 +303,31 @@
   .pFill{height:100%; border-radius:99px; background:linear-gradient(90deg, var(--accent), var(--next-pill-text)); transition:width .4s;}
   .lateBadge{font-size:10.5px; font-weight:700; color:#fff; background:var(--red); border-radius:999px; padding:2px 8px;}
   .pEmpty{font-size:12px; color:var(--sub); padding:8px 4px;}
+
+  /* 親タスクピッカー */
+  .ppBtn{width:100%; border:none; border-radius:10px; padding:9px 12px; font-size:14px; font-family:inherit;
+    background:var(--input-bg); color:var(--text); text-align:left; cursor:pointer;}
+  .ppBtn:hover{filter:brightness(.97);}
+  #parentPop{position:fixed; display:none; z-index:400; background:var(--card); border-radius:13px; padding:6px;
+    box-shadow:0 8px 30px rgba(0,0,0,.3); border:0.5px solid var(--line); max-height:280px; overflow-y:auto;}
+  .ppRow{padding:7px 10px; border-radius:8px; font-size:13px; cursor:pointer; display:flex; align-items:center; gap:4px;
+    white-space:nowrap; overflow:hidden;}
+  .ppRow:hover{background:var(--seg-bg);}
+  .ppRow.ppProj{font-weight:700;}
+  .ppRow.sel{background:var(--blue-row);}
+  .ppRow .ppGl{color:var(--sub); flex-shrink:0;}
+  .ppRow .ppT{overflow:hidden; text-overflow:ellipsis;}
+  .ppRow .ppCk{margin-left:auto; color:var(--blue-pill); font-weight:700; padding-left:10px;}
+
+  /* テンプレート作成 */
+  #pipeTools{display:none; padding:0 0 10px;}
+  .tplPrev{max-height:260px; overflow-y:auto; background:var(--input-bg); border-radius:10px; padding:10px 12px;
+    font-size:12.5px; margin-bottom:4px;}
+  .tplRow{display:flex; gap:10px; padding:3px 0; align-items:baseline;}
+  .tplRow .d{width:88px; color:var(--sub); font-variant-numeric:tabular-nums; flex-shrink:0;}
+  .tplRow.gate{font-weight:700;}
+  .tplRow.gate .d{color:var(--blue-pill);}
+  .tplRow .c{color:var(--sub); font-size:11px; margin-left:auto; flex-shrink:0;}
   .pCol.pUnset{background:transparent; border:1.5px dashed var(--line);}
   .pCol.pUnset .pCard{opacity:.85;}
   @media (max-width:719px){
@@ -524,6 +549,10 @@
     <tbody id="taskBody"></tbody>
   </table>
   <div id="kanban"></div>
+  <div id="pipeTools">
+    <button class="btnAddHol" onclick="openTplModal()">＋ テンプレートから案件作成</button>
+    <span class="hint" style="margin-left:10px">開発スケジュール原紙の工程一式を量産開始日から逆算して自動作成します</span>
+  </div>
   <div id="pipeline"></div>
   <div id="ganttWrap"></div>
   <div id="cards"></div>
@@ -531,6 +560,8 @@
 </main>
 
 <button id="fab" onclick="openTaskModal()">＋</button>
+
+<div id="parentPop"></div>
 
 <div id="priPop">
   <button data-v="">ー</button>
@@ -581,7 +612,7 @@
     </div>
     <div class="formRow">
       <label>親タスク（案件・工程の下にぶら下げる場合に選択）</label>
-      <select id="f_parent"></select>
+      <button type="button" id="f_parentBtn" class="ppBtn">なし（トップ階層＝案件）</button>
     </div>
     <div class="formRow">
       <label>開発フェーズ（開発案件のみ設定。🧭開発スケジュールの列に対応）</label>
@@ -595,6 +626,35 @@
       <button class="btnSave" onclick="saveTask()">保存</button>
       <button class="btnCancel" onclick="closeTaskModal()">キャンセル</button>
       <button class="btnDelete" id="btnDelete" onclick="deleteTask()" style="display:none">削除</button>
+    </div>
+  </div>
+</div>
+
+<!-- テンプレート作成モーダル -->
+<div class="overlay" id="tplOverlay">
+  <div class="modal">
+    <h2>テンプレートから案件を作成</h2>
+    <div class="formRow">
+      <label>案件名（商品名） *</label>
+      <input type="text" id="f_tpl_title" placeholder="例: 新型宅配ボックス">
+    </div>
+    <div class="formGrid">
+      <div class="formRow">
+        <label>PL（案件担当）</label>
+        <select id="f_tpl_pl"></select>
+      </div>
+      <div class="formRow">
+        <label>量産開始（予定日） *</label>
+        <input type="date" id="f_tpl_launch">
+      </div>
+    </div>
+    <div class="hint" style="margin-bottom:8px">
+      開発スケジュール原紙（第7版）の工程を逆算配置します。<b>日付は目安のリードタイム</b>です。作成後に個別調整してください（休日は前営業日へ自動調整）。
+    </div>
+    <div id="tplPreview" class="tplPrev"></div>
+    <div class="modalBtns">
+      <button class="btnSave" onclick="createFromTemplate()">この内容で作成</button>
+      <button class="btnCancel" onclick="closeTplModal()">キャンセル</button>
     </div>
   </div>
 </div>
@@ -1065,6 +1125,7 @@ function render(preserveOrder){
   $('boardBar').style.display = isBoard ? 'flex' : 'none';
   $('kanban').style.display = isBoard ? 'flex' : 'none';
   $('pipeline').style.display = isPipe ? 'flex' : 'none';
+  $('pipeTools').style.display = isPipe ? 'block' : 'none';
   $('ganttWrap').style.display = isGantt ? 'block' : 'none';
   $('ganttSeg').style.display = isGantt ? 'inline-flex' : 'none';
   document.querySelectorAll('#ganttSeg .chip').forEach(c => c.classList.toggle('active', c.dataset.scale === ganttScale));
@@ -1470,6 +1531,94 @@ function dropToStatus(id, colKey){
   markDirty(); render();
 }
 
+/* ================= 案件テンプレート（原紙第7版ベース・週数は目安） ================= */
+const DEV_TEMPLATE = [
+  { t:'DR-1（企画）', w:26, dur:1, gate:true, items:['企画書','DR-2までの計画表'] },
+  { t:'試作設計', w:24, dur:2, items:['試作図面一式','試作製造指示書発行'] },
+  { t:'試作品製作', w:21, dur:3, items:['前加工検査','塗装前組立検査','試作品完成（組立検査）'] },
+  { t:'試作評価・対策', w:19, dur:2, items:['試作問題点一覧表','実験検証記録表','試作問題点対策表','受注管理フロー図','DR-3までの計画表'] },
+  { t:'DR-2（設計）', w:18, dur:1, gate:true, items:[] },
+  { t:'量産試作設計・手配', w:16, dur:2, items:['量産試作図面一式','新規資材一覧表','製造指示書発行・レイアウト原図','加工プログラム作成'] },
+  { t:'品証文書（試作段階）', w:14, dur:3, items:['QDカルテ・不具合未然防止対策検討表','作業標準書・QC工程表（前組立まで）','検査基準書・検査成績書（前組立まで）','作業標準書・QC工程表（後組立）','検査基準書・検査成績書（後組立）'] },
+  { t:'量産試作品製作', w:12, dur:3, items:['前加工検査','外注先立会検査','塗装前組立検査','量産試作品完成（組立検査）'] },
+  { t:'量産試作評価・対策', w:11, dur:2, items:['量産試作問題点一覧表','試験報告書','モニター評価報告書','量産試作問題点対策表','量産までの計画表'] },
+  { t:'DR-3（製造）', w:10, dur:1, gate:true, items:[] },
+  { t:'販促・出荷準備', w:8, dur:4, items:['カタログ原稿','取説・施工説明書','営業マニュアル','受注管理フロー図（在庫・出荷エリア）'] },
+  { t:'量産設計確定', w:8, dur:2, items:['量産図面一式','量産加工プログラム作成','最終原価表・仕入先価格一覧'] },
+  { t:'品証文書（量産段階）', w:6, dur:2, items:['QDカルテ・不具合未然防止対策検討表','作業標準書・QC工程表（前組立まで）','検査基準書・検査成績書（前組立まで）','作業標準書・QC工程表（後組立）','検査基準書・検査成績書（後組立）'] },
+  { t:'マスタ登録・受注準備', w:4, dur:2, items:['部品製造指示マスタ登録依頼書','Ｋシステムマスター登録','社内加工品マスタ情報登録','購入品マスタ情報登録','製造指示書・商い奉行登録','顧客対応勉強会'] },
+  { t:'量産移行確認・DR-4（品証）', w:2, dur:1, gate:true, items:['量産移行確認書'] },
+  { t:'量産開始', w:0, dur:0, gate:true, items:[] }
+];
+function prevBusinessDay(sd){ let d = addDays(sd, -1); while(isNonWorkday(d)) d = addDays(d, -1); return d; }
+function adjPrev(sd){ return isNonWorkday(sd) ? prevBusinessDay(sd) : sd; }
+function tplDates(launch){
+  return DEV_TEMPLATE.map(x => ({ ...x, due: x.w === 0 ? launch : adjPrev(addDays(launch, -x.w * 7)) }));
+}
+function openTplModal(){
+  if(!me){ alert('先に右上で「自分」を選択してください'); return; }
+  $('f_tpl_title').value = '';
+  $('f_tpl_pl').innerHTML = memberOptions(me);
+  $('f_tpl_launch').value = adjPrev(addDays(todayStr(), 182));
+  renderTplPreview();
+  $('tplOverlay').classList.add('show');
+  $('f_tpl_title').focus();
+}
+function closeTplModal(){ $('tplOverlay').classList.remove('show'); }
+function renderTplPreview(){
+  const launch = $('f_tpl_launch').value;
+  const box = $('tplPreview');
+  if(!launch){
+    box.innerHTML = '<span class="hint">量産開始日を選ぶと工程日付のプレビューを表示します</span>';
+    return;
+  }
+  box.innerHTML = tplDates(launch).map(x =>
+    `<div class="tplRow ${x.gate ? 'gate' : ''}"><span class="d">${esc(fmtMD(x.due))}</span><span class="n">${esc(x.t)}</span>${x.items.length ? `<span class="c">＋${x.items.length}項目</span>` : ''}</div>`
+  ).join('');
+}
+function createFromTemplate(){
+  const title = $('f_tpl_title').value.trim();
+  const pl = $('f_tpl_pl').value;
+  const launch = $('f_tpl_launch').value;
+  if(!title){ alert('案件名を入力してください'); return; }
+  if(!launch){ alert('量産開始日を選択してください'); return; }
+  const now = nowIso();
+  const proj = {
+    id: uid(), title, due: launch, startDate: null, priority: '',
+    status: 'todo', doneDate: null, assignee: pl, requester: me,
+    parentId: null, phase: getPhases()[0], memo: '',
+    createdAt: now, updatedAt: now, deleted: false
+  };
+  tasks.push(proj);
+  let count = 0;
+  for(const x of tplDates(launch)){
+    const card = {
+      id: uid() + Math.random().toString(36).slice(2, 5), title: x.t,
+      due: x.due, startDate: x.dur ? addDays(x.due, -x.dur * 7) : null, priority: '',
+      status: 'todo', doneDate: null, assignee: pl, requester: me,
+      parentId: proj.id, phase: null, memo: '',
+      createdAt: now, updatedAt: now, deleted: false
+    };
+    tasks.push(card); count++;
+    for(const it of x.items){
+      tasks.push({
+        id: uid() + Math.random().toString(36).slice(2, 5), title: it,
+        due: null, startDate: null, priority: '',
+        status: 'todo', doneDate: null, assignee: pl, requester: me,
+        parentId: card.id, phase: null, memo: '',
+        createdAt: now, updatedAt: now, deleted: false
+      });
+      count++;
+    }
+  }
+  closeTplModal();
+  markDirty();
+  currentBoard = proj.id;
+  localStorage.setItem(LS.board, proj.id);
+  setView(document.querySelector('#viewSeg .chip[data-view="board"]'));
+  showToast(`✅ 「${title}」に${count}件の工程・項目を作成しました`);
+}
+
 /* ================= 案件パイプライン ================= */
 function projectPhase(p){
   const ph = getPhases();
@@ -1791,6 +1940,54 @@ function openPriPopover(anchor, cb){
 function closePriPopover(){ $('priPop').style.display = 'none'; priPopCb = null; }
 
 /* ================= モーダル ================= */
+let modalParent = '';
+function taskPathLabel(id){
+  if(!id) return 'なし（トップ階層＝案件）';
+  const parts = [];
+  let cur = tasks.find(x => x.id === id && !x.deleted);
+  let g = 0;
+  while(cur && g++ < 6){
+    parts.unshift(cur.title);
+    cur = cur.parentId ? tasks.find(x => x.id === cur.parentId && !x.deleted) : null;
+  }
+  return parts.join(' › ') || 'なし（トップ階層＝案件）';
+}
+function buildParentList(excludeTask, selectedId){
+  const rows = [{ id: '', label: 'なし（トップ階層＝案件）', depth: 0 }];
+  for(const r of treeRows(true)){
+    const p = r.t;
+    if(excludeTask && (p.id === excludeTask.id || isDescendantOf(p, excludeTask.id))) continue;
+    if(r.depth >= MAX_DEPTH) continue;
+    rows.push({ id: p.id, label: p.title, depth: r.depth });
+  }
+  if(selectedId && !rows.some(r => r.id === selectedId)){
+    const cur = tasks.find(x => x.id === selectedId && !x.deleted);
+    if(cur) rows.push({ id: cur.id, label: cur.title + (cur.status === 'done' ? '（完了済み）' : ''), depth: 1 });
+  }
+  return rows;
+}
+function openParentPop(){
+  const excludeTask = editingId ? tasks.find(x => x.id === editingId) : null;
+  const pop = $('parentPop');
+  const rows = buildParentList(excludeTask, modalParent);
+  pop.innerHTML = rows.map(r => {
+    const glyph = r.depth > 1 ? `<span class="ppGl">${'　'.repeat(r.depth - 2)}└ </span>` : '';
+    return `<div class="ppRow ${r.depth === 1 ? 'ppProj' : ''} ${r.id === modalParent ? 'sel' : ''}" data-id="${esc(r.id)}">${glyph}<span class="ppT">${esc(r.label)}</span>${r.id === modalParent ? '<span class="ppCk">✓</span>' : ''}</div>`;
+  }).join('');
+  pop.querySelectorAll('.ppRow').forEach(row => row.addEventListener('click', () => {
+    modalParent = row.dataset.id;
+    $('f_parentBtn').textContent = taskPathLabel(modalParent);
+    closeParentPop();
+  }));
+  pop.style.display = 'block';
+  const r = $('f_parentBtn').getBoundingClientRect();
+  const w = Math.min(460, window.innerWidth - 24);
+  pop.style.width = w + 'px';
+  pop.style.left = Math.max(12, Math.min(window.innerWidth - w - 12, r.left)) + 'px';
+  const h = pop.offsetHeight;
+  pop.style.top = (r.bottom + h + 10 > window.innerHeight ? Math.max(10, r.top - h - 6) : r.bottom + 4) + 'px';
+}
+function closeParentPop(){ $('parentPop').style.display = 'none'; }
 function buildParentOptions(excludeTask, selectedId){
   const rows = treeRows(true);
   let html = '<option value="">なし（トップ階層＝案件）</option>';
@@ -1820,14 +2017,15 @@ function openTaskModal(id, parentPreset){
   $('f_status').value = t && t.status === 'doing' ? 'doing' : 'todo';
   $('f_assignee').innerHTML = memberOptions(t?.assignee || me || members.list[0]);
   $('f_requester').innerHTML = memberOptions(t?.requester || me || members.list[0]);
-  $('f_parent').innerHTML = buildParentOptions(t, t?.parentId || parentPreset || '');
+  modalParent = t?.parentId || parentPreset || '';
+  $('f_parentBtn').textContent = taskPathLabel(modalParent);
   $('f_phase').innerHTML = '<option value="">ー（開発スケジュール対象外）</option>' +
     getPhases().map(p => `<option value="${esc(p)}" ${t?.phase === p ? 'selected' : ''}>${esc(p)}</option>`).join('');
   $('f_memo').value = t?.memo || '';
   $('taskOverlay').classList.add('show');
   if(!t) $('f_title').focus();
 }
-function closeTaskModal(){ $('taskOverlay').classList.remove('show'); editingId = null; creatingProject = false; }
+function closeTaskModal(){ $('taskOverlay').classList.remove('show'); editingId = null; creatingProject = false; closeParentPop(); }
 function saveTask(){
   const title = $('f_title').value.trim();
   if(!title){ alert('タイトルを入力してください'); return; }
@@ -1838,7 +2036,7 @@ function saveTask(){
     priority: $('f_priority').value === '' ? '' : Number($('f_priority').value),
     assignee: $('f_assignee').value,
     requester: $('f_requester').value,
-    parentId: $('f_parent').value || null,
+    parentId: modalParent || null,
     phase: $('f_phase').value || null,
     memo: $('f_memo').value,
     updatedAt: nowIso()
@@ -2216,9 +2414,20 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('keydown', e => {
   if(e.key !== 'Escape') return;
+  if($('parentPop').style.display === 'block'){ closeParentPop(); return; }
   document.querySelectorAll('.overlay.show').forEach(ov => ov.classList.remove('show'));
   closePriPopover();
   editingId = null; creatingProject = false;
+});
+$('f_tpl_launch').addEventListener('change', renderTplPreview);
+$('f_parentBtn').addEventListener('click', e => {
+  e.stopPropagation();
+  $('parentPop').style.display === 'block' ? closeParentPop() : openParentPop();
+});
+document.addEventListener('click', e => {
+  if($('parentPop').style.display === 'block' && !e.target.closest('#parentPop') && e.target.id !== 'f_parentBtn'){
+    closeParentPop();
+  }
 });
 document.addEventListener('visibilitychange', () => { if(!document.hidden) pull(); });
 setInterval(() => { if(!document.hidden) pull(); }, 45000);
